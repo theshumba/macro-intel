@@ -43,7 +43,11 @@ export const REGIONS = [
   'Global',
 ];
 
-// ---- CORS Proxies (tried in order) ----------------------------------------
+// ---- Cloudflare Worker URL (primary data source) --------------------------
+
+const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
+
+// ---- CORS Proxies (fallback, tried in order) ------------------------------
 
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
@@ -835,21 +839,79 @@ function generateDemoData() {
   });
 }
 
+// ---- Worker Fetch ---------------------------------------------------------
+
+/**
+ * Try fetching pre-parsed items from the Cloudflare Worker RSS proxy.
+ * Returns enriched items array, or null if worker is unavailable.
+ */
+async function fetchFromWorker() {
+  if (!WORKER_URL) return null;
+
+  try {
+    const response = await fetch(`${WORKER_URL}/api/feeds`, {
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    if (!data.items || data.items.length === 0) return null;
+
+    return data.items.map((item) => {
+      const combinedText = `${item.title} ${item.description}`;
+      const region = item.sourceRegion || 'Global';
+      const coords = resolveCoordinates(combinedText, region);
+
+      return {
+        id: crypto.randomUUID(),
+        headline: item.title,
+        summary: item.description,
+        source: item.sourceName,
+        link: item.link,
+        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+        region,
+        category: categorize(combinedText, item.sourceCategory || 'Mixed'),
+        sourceCategory: item.sourceCategory || 'Mixed',
+        impactScore: scoreImpact(combinedText),
+        keywords: extractKeywords(combinedText),
+        inflationBias: classifyInflationBias(combinedText),
+        growthBias: classifyGrowthBias(combinedText),
+        lat: coords.lat,
+        lng: coords.lng,
+      };
+    });
+  } catch (err) {
+    console.warn('[feedService] Worker fetch failed:', err.message);
+    return null;
+  }
+}
+
 // ---- Public API -----------------------------------------------------------
 
 /**
- * Fetch all configured RSS feeds concurrently and return a flat,
- * de-duplicated, impact-sorted array of structured items.
- *
- * If all feeds fail (CORS proxies down, offline, etc.), returns
- * curated demo data so the UI always has something to show.
+ * Fetch all RSS feeds. Priority:
+ * 1. Cloudflare Worker (if VITE_WORKER_URL is set)
+ * 2. Browser CORS proxy fallback chain
+ * 3. Curated demo data
  */
 export async function fetchAllFeeds() {
-  const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+  // Try worker first
+  const workerItems = await fetchFromWorker();
 
-  const allItems = results.flatMap((result) =>
-    result.status === 'fulfilled' ? result.value : []
-  );
+  let allItems;
+
+  if (workerItems && workerItems.length > 0) {
+    console.info(`[feedService] Worker returned ${workerItems.length} items.`);
+    allItems = workerItems;
+  } else {
+    // Fall back to CORS proxy chain
+    const results = await Promise.allSettled(FEEDS.map(fetchFeed));
+    allItems = results.flatMap((result) =>
+      result.status === 'fulfilled' ? result.value : []
+    );
+  }
 
   // De-duplicate by headline + source (same article from same feed)
   const seen = new Set();

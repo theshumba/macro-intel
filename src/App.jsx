@@ -3,7 +3,11 @@ import Header from "./components/Header";
 import FilterBar from "./components/FilterBar";
 import NewsList from "./components/NewsList";
 import GlobeView from "./components/GlobeView";
+import DashboardView from "./components/DashboardView";
+import TimelineView from "./components/TimelineView";
 import BriefPanel from "./components/BriefPanel";
+import ViewSwitcher from "./components/ViewSwitcher";
+import Toast from "./components/Toast";
 import { fetchAllFeeds, CATEGORIES, REGIONS } from "./services/feedService";
 import { generateBrief } from "./services/briefGenerator";
 
@@ -23,7 +27,8 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [brief, setBrief] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [view, setView] = useState("globe"); // "globe" | "list"
+  const [view, setView] = useState("globe");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const loadFeeds = useCallback(async () => {
     setLoading(true);
@@ -41,6 +46,9 @@ function App() {
 
   useEffect(() => {
     loadFeeds();
+    // Auto-refresh every 15 minutes
+    const interval = setInterval(loadFeeds, 15 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [loadFeeds]);
 
   const filteredItems = useMemo(() => {
@@ -97,39 +105,21 @@ function App() {
         lastUpdated={lastUpdated}
         itemCount={filteredItems.length}
         onRefresh={loadFeeds}
+        filtersOpen={filtersOpen}
+        onToggleFilters={() => setFiltersOpen(!filtersOpen)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 pb-20 md:pb-6">
         {/* View toggle + filters */}
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-lg border border-gray-700 overflow-hidden">
-            <button
-              onClick={() => setView("globe")}
-              className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                view === "globe"
-                  ? "bg-emerald-500/20 text-emerald-400 border-r border-emerald-500/30"
-                  : "bg-[#12121A] text-gray-400 border-r border-gray-700 hover:text-gray-200"
-              }`}
-            >
-              Globe
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                view === "list"
-                  ? "bg-emerald-500/20 text-emerald-400"
-                  : "bg-[#12121A] text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              List
-            </button>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <ViewSwitcher view={view} onViewChange={setView} />
           <div className="flex-1">
             <FilterBar
               filters={filters}
               onFilterChange={setFilters}
               categories={CATEGORIES}
               regions={REGIONS}
+              collapsed={!filtersOpen}
             />
           </div>
         </div>
@@ -166,9 +156,26 @@ function App() {
             selectedId={selectedId}
           />
         )}
+
+        {!loading && view === "dashboard" && (
+          <DashboardView
+            items={filteredItems}
+            onSelect={handleSelect}
+            selectedId={selectedId}
+          />
+        )}
+
+        {!loading && view === "timeline" && (
+          <TimelineView
+            items={filteredItems}
+            onSelect={handleSelect}
+            selectedId={selectedId}
+          />
+        )}
       </main>
 
       <BriefPanel brief={brief} onClose={handleCloseBrief} />
+      <Toast />
     </div>
   );
 }
