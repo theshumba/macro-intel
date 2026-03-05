@@ -123,3 +123,33 @@
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 *::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Recharts tooltip override */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+/* Chart container hover effect */
+.recharts-responsive-container {
+  transition: opacity 0.2s ease;
+}
+
+/* Data badge pulse */
+@keyframes data-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Table hover row */
+table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Macro card value animation */
+@keyframes value-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-value-pop {
+  animation: value-pop 0.3s ease-out;
+}

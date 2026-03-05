@@ -44,6 +44,16 @@ const VIEWS = [
       </svg>
     ),
   },
+  {
+    id: 'markets',
+    label: 'Markets',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
+        <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7 16l4-6 4 4 5-8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
 ];
 
 function ViewSwitcher({ view, onViewChange }) {

@@ -1,0 +1,447 @@
+import { useState, useEffect, useMemo } from 'react';
+import MacroCard from './charts/MacroCard';
+import MiniChart from './charts/MiniChart';
+import { fetchMacroSnapshot } from '../services/dataApis';
+import { fetchWorldBank } from '../services/dataApis';
+
+// ---- G20 country list for macro table --------------------------------------
+
+const G20_COUNTRIES = [
+  { name: 'United States', code: 'US' },
+  { name: 'China', code: 'CN' },
+  { name: 'Japan', code: 'JP' },
+  { name: 'Germany', code: 'DE' },
+  { name: 'United Kingdom', code: 'GB' },
+  { name: 'India', code: 'IN' },
+  { name: 'France', code: 'FR' },
+  { name: 'Brazil', code: 'BR' },
+  { name: 'Italy', code: 'IT' },
+  { name: 'Canada', code: 'CA' },
+  { name: 'South Korea', code: 'KR' },
+  { name: 'Australia', code: 'AU' },
+  { name: 'Mexico', code: 'MX' },
+  { name: 'Indonesia', code: 'ID' },
+  { name: 'Saudi Arabia', code: 'SA' },
+  { name: 'Turkey', code: 'TR' },
+  { name: 'Argentina', code: 'AR' },
+  { name: 'South Africa', code: 'ZA' },
+  { name: 'Russia', code: 'RU' },
+];
+
+// ---- Helpers ----------------------------------------------------------------
+
+function formatFREDValue(data) {
+  if (!data || !Array.isArray(data) || data.length === 0) return { value: null, sparkData: [], change: null, direction: 'flat' };
+
+  const latest = data[0].value;
+  const sparkData = [...data].reverse().map(d => ({ date: d.date, value: d.value }));
+
+  // Compute change vs previous
+  let change = null;
+  let direction = 'flat';
+  if (data.length >= 2 && data[1].value !== null) {
+    const diff = latest - data[1].value;
+    change = diff >= 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2);
+    direction = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  }
+
+  return { value: latest, sparkData, change, direction };
+}
+
+function formatPrice(val) {
+  if (val === null || val === undefined) return '--';
+  if (Math.abs(val) >= 1000) return val.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return val.toFixed(2);
+}
+
+function cellColor(val, reverse = false) {
+  if (val === null || val === undefined) return 'text-gray-500';
+  if (reverse) return val > 0 ? 'text-red-400' : val < 0 ? 'text-emerald-400' : 'text-gray-400';
+  return val > 0 ? 'text-emerald-400' : val < 0 ? 'text-red-400' : 'text-gray-400';
+}
+
+// ---- Economic Calendar component --------------------------------------------
+
+function EconomicCalendar({ calendar }) {
+  if (!calendar?.economicCalendar?.length) {
+    return (
+      <div className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Economic Calendar</h3>
+        <p className="text-sm text-gray-600">No calendar data available. Set VITE_FINNHUB_KEY in .env for economic events.</p>
+      </div>
+    );
+  }
+
+  const events = calendar.economicCalendar
+    .filter(e => e.event)
+    .slice(0, 15);
+
+  return (
+    <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+      <div className="px-4 pt-4 pb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Economic Calendar</h3>
+      </div>
+      <div className="divide-y divide-gray-800/40">
+        {events.map((event, i) => {
+          const impact = event.impact === 'high' ? 'bg-red-500' : event.impact === 'medium' ? 'bg-amber-500' : 'bg-gray-600';
+          return (
+            <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+              <div className={`h-2 w-2 rounded-full ${impact} shrink-0`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-300 truncate">{event.event}</p>
+                <p className="text-[10px] text-gray-600">{event.country} &middot; {event.date}</p>
+              </div>
+              <div className="text-right shrink-0">
+                {event.actual !== undefined && (
+                  <p className="text-xs font-medium text-gray-200">{event.actual}</p>
+                )}
+                {event.estimate !== undefined && (
+                  <p className="text-[10px] text-gray-500">Est: {event.estimate}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---- G20 Macro Table --------------------------------------------------------
+
+function MacroTable({ data, loading }) {
+  const [sortKey, setSortKey] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  const sorted = useMemo(() => {
+    if (!data.length) return [];
+    return [...data].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      if (typeof aVal === 'string') return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+  }, [data, sortKey, sortDir]);
+
+  const columns = [
+    { key: 'name', label: 'Country', align: 'left' },
+    { key: 'gdpGrowth', label: 'GDP Growth %', align: 'right' },
+    { key: 'inflation', label: 'CPI %', align: 'right' },
+    { key: 'unemployment', label: 'Unemp %', align: 'right' },
+    { key: 'tradeGdp', label: 'Trade/GDP %', align: 'right' },
+  ];
+
+  const sortArrow = (key) => {
+    if (sortKey !== key) return '';
+    return sortDir === 'asc' ? ' \u2191' : ' \u2193';
+  };
+
+  return (
+    <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+      <div className="px-4 pt-4 pb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">G20 Macro Overview</h3>
+      </div>
+
+      {loading ? (
+        <div className="p-4 space-y-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="skeleton h-8 w-full rounded" />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-800/60">
+                {columns.map(col => (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className={`px-4 py-2.5 font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 transition-colors select-none ${col.align === 'right' ? 'text-right' : 'text-left'}`}
+                  >
+                    {col.label}{sortArrow(col.key)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((row) => (
+                <tr key={row.code} className="border-b border-gray-800/30 hover:bg-white/[0.02] transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-gray-200">{row.name}</td>
+                  <td className={`px-4 py-2.5 text-right tabular-nums ${cellColor(row.gdpGrowth)}`}>
+                    {row.gdpGrowth !== null ? `${row.gdpGrowth.toFixed(1)}%` : '--'}
+                  </td>
+                  <td className={`px-4 py-2.5 text-right tabular-nums ${cellColor(row.inflation, true)}`}>
+                    {row.inflation !== null ? `${row.inflation.toFixed(1)}%` : '--'}
+                  </td>
+                  <td className={`px-4 py-2.5 text-right tabular-nums ${cellColor(row.unemployment, true)}`}>
+                    {row.unemployment !== null ? `${row.unemployment.toFixed(1)}%` : '--'}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-400">
+                    {row.tradeGdp !== null ? `${row.tradeGdp.toFixed(0)}%` : '--'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Main MarketsView -------------------------------------------------------
+
+export default function MarketsView() {
+  const [snapshot, setSnapshot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [g20Data, setG20Data] = useState([]);
+  const [g20Loading, setG20Loading] = useState(true);
+
+  // Fetch macro snapshot
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        const data = await fetchMacroSnapshot();
+        if (!cancelled) setSnapshot(data);
+      } catch (err) {
+        console.warn('[MarketsView] Snapshot fetch failed:', err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+
+    // Auto-refresh every 15 minutes
+    const interval = setInterval(load, 15 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Fetch G20 macro table data (World Bank — no key needed)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadG20() {
+      setG20Loading(true);
+      try {
+        const codes = G20_COUNTRIES.map(c => c.code).join(';');
+        const [gdp, cpi, unemp, trade] = await Promise.all([
+          fetchWorldBank('NY.GDP.MKTP.KD.ZG', codes, '2022:2024').catch(() => []),
+          fetchWorldBank('FP.CPI.TOTL.ZG', codes, '2022:2024').catch(() => []),
+          fetchWorldBank('SL.UEM.TOTL.ZS', codes, '2022:2024').catch(() => []),
+          fetchWorldBank('NE.TRD.GNFS.ZS', codes, '2022:2024').catch(() => []),
+        ]);
+
+        // Get latest value per country for each indicator
+        function getLatest(data, countryCode) {
+          const countryData = data
+            .filter(d => d.countryCode === countryCode && d.value !== null)
+            .sort((a, b) => parseInt(b.year) - parseInt(a.year));
+          return countryData[0]?.value ?? null;
+        }
+
+        const rows = G20_COUNTRIES.map(c => ({
+          name: c.name,
+          code: c.code,
+          gdpGrowth: getLatest(gdp, c.code),
+          inflation: getLatest(cpi, c.code),
+          unemployment: getLatest(unemp, c.code),
+          tradeGdp: getLatest(trade, c.code),
+        }));
+
+        if (!cancelled) setG20Data(rows);
+      } catch (err) {
+        console.warn('[MarketsView] G20 fetch failed:', err.message);
+      } finally {
+        if (!cancelled) setG20Loading(false);
+      }
+    }
+
+    loadG20();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Extract FRED card data
+  const cards = useMemo(() => {
+    if (!snapshot?.macro) return [];
+
+    const items = [
+      { title: 'Fed Funds Rate', ...formatFREDValue(snapshot.macro.fedFundsRate), unit: '%' },
+      { title: 'CPI Index', ...formatFREDValue(snapshot.macro.cpi), unit: '' },
+      { title: 'VIX', ...formatFREDValue(snapshot.macro.vix), unit: '' },
+      { title: 'WTI Crude Oil', ...formatFREDValue(snapshot.macro.oilWTI), unit: '$/bbl' },
+      { title: 'Gold', ...formatFREDValue(snapshot.macro.gold), unit: '$/oz' },
+      { title: '10Y-2Y Spread', ...formatFREDValue(snapshot.macro.yieldSpread), unit: 'bps' },
+    ];
+
+    return items;
+  }, [snapshot]);
+
+  // Chart data from FRED series
+  const chartSeries = useMemo(() => {
+    if (!snapshot?.macro) return [];
+
+    const series = [];
+
+    if (snapshot.macro.yieldSpread?.length) {
+      series.push({
+        title: '10Y-2Y Yield Spread',
+        data: [...snapshot.macro.yieldSpread].reverse().map(d => ({ date: d.date, value: d.value })),
+        unit: '%',
+        chartType: 'area',
+        color: snapshot.macro.yieldSpread[0]?.value < 0 ? 'red' : 'emerald',
+      });
+    }
+
+    if (snapshot.macro.oilWTI?.length) {
+      series.push({
+        title: 'WTI Crude Oil (30-day)',
+        data: [...snapshot.macro.oilWTI].reverse().map(d => ({ date: d.date, value: d.value })),
+        unit: '$/bbl',
+        chartType: 'line',
+        color: 'amber',
+      });
+    }
+
+    if (snapshot.macro.vix?.length) {
+      series.push({
+        title: 'VIX Volatility (30-day)',
+        data: [...snapshot.macro.vix].reverse().map(d => ({ date: d.date, value: d.value })),
+        unit: '',
+        chartType: 'area',
+        color: snapshot.macro.vix[0]?.value > 25 ? 'red' : 'sky',
+      });
+    }
+
+    if (snapshot.macro.gold?.length) {
+      series.push({
+        title: 'Gold Price (30-day)',
+        data: [...snapshot.macro.gold].reverse().map(d => ({ date: d.date, value: d.value })),
+        unit: '$/oz',
+        chartType: 'line',
+        color: 'amber',
+      });
+    }
+
+    return series;
+  }, [snapshot]);
+
+  // Check if FRED key is missing
+  const hasFredKey = !!(import.meta.env.VITE_FRED_API_KEY);
+
+  return (
+    <div className="space-y-4 sm:space-y-6 pb-16 md:pb-0">
+      {/* Row 1: Macro Pulse Cards */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Macro Pulse</h3>
+        {!hasFredKey && !loading && (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-3">
+            <p className="text-xs text-amber-400">Set <code className="bg-white/5 px-1 rounded">VITE_FRED_API_KEY</code> in your .env file for live FRED data. <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300">Get a free key</a></p>
+          </div>
+        )}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <MacroCard key={i} title="" loading={true} index={i} />
+            ))
+          ) : cards.length > 0 ? (
+            cards.map((card, i) => (
+              <MacroCard
+                key={card.title}
+                title={card.title}
+                value={card.value !== null ? formatPrice(card.value) : null}
+                unit={card.unit}
+                change={card.change}
+                changeDirection={card.direction}
+                sparkData={card.sparkData}
+                noKey={card.value === null && !hasFredKey}
+                index={i}
+              />
+            ))
+          ) : (
+            Array.from({ length: 6 }).map((_, i) => (
+              <MacroCard key={i} title={['Fed Funds', 'CPI', 'VIX', 'WTI Oil', 'Gold', 'Yield Spread'][i]} noKey={true} index={i} />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Interactive Charts */}
+      {chartSeries.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Market Charts</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {chartSeries.map((series) => (
+              <MiniChart
+                key={series.title}
+                title={series.title}
+                data={series.data}
+                unit={series.unit}
+                chartType={series.chartType}
+                color={series.color}
+                source="FRED"
+                latestValue={series.data[series.data.length - 1]?.value}
+                latestDate={series.data[series.data.length - 1]?.date}
+                height={160}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 3: G20 Macro Table */}
+      <MacroTable data={g20Data} loading={g20Loading} />
+
+      {/* Row 4: Economic Calendar */}
+      <EconomicCalendar calendar={snapshot?.calendar} />
+
+      {/* Market News */}
+      {snapshot?.news?.finnhub?.length > 0 && (
+        <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+          <div className="px-4 pt-4 pb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Market News</h3>
+          </div>
+          <div className="divide-y divide-gray-800/40">
+            {snapshot.news.finnhub.slice(0, 10).map((item, i) => (
+              <a
+                key={i}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              >
+                <p className="text-sm text-gray-200 leading-snug line-clamp-2">{item.headline}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[10px] text-gray-500">{item.source}</span>
+                  {item.datetime && (
+                    <>
+                      <span className="h-1 w-1 rounded-full bg-gray-700" />
+                      <span className="text-[10px] text-gray-600">
+                        {new Date(item.datetime * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

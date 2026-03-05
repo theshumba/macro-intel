@@ -5,6 +5,7 @@ import NewsList from "./components/NewsList";
 import GlobeView from "./components/GlobeView";
 import DashboardView from "./components/DashboardView";
 import TimelineView from "./components/TimelineView";
+import MarketsView from "./components/MarketsView";
 import BriefPanel from "./components/BriefPanel";
 import ViewSwitcher from "./components/ViewSwitcher";
 import Toast from "./components/Toast";
@@ -193,6 +194,10 @@ function App() {
                 onSelect={handleSelect}
                 selectedId={selectedId}
               />
+            )}
+
+            {view === "markets" && (
+              <MarketsView />
             )}
           </div>
         )}

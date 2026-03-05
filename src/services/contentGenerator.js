@@ -869,4 +869,98 @@ export function generateContent(item) {
   };
 }
 
+/**
+ * Generate content enriched with real data citations.
+ * Wraps generateContent and injects data points from contextual indicators.
+ *
+ * @param {object} item - Event item
+ * @param {object[]} citations - Array from extractDataCitations()
+ * @returns {object} Enhanced content with data citations embedded
+ */
+export function generateDataEnrichedContent(item, citations) {
+  var content = generateContent(item);
+  if (!citations || citations.length === 0) return content;
+
+  // Build a "By the numbers" block
+  var statsBlock = citations
+    .map(function(c) { return c.name + ': ' + c.value + ' (' + c.source + ', ' + c.date + ')'; })
+    .join('. ');
+
+  var shortStats = citations.slice(0, 2)
+    .map(function(c) { return c.name + ': ' + c.value; })
+    .join(' | ');
+
+  // Enrich X posts — append short stat
+  ['analyst', 'casual', 'hotTake'].forEach(function(tone) {
+    if (content.social?.x?.[tone]) {
+      var orig = content.social.x[tone].text;
+      var stat = ' [' + shortStats + ']';
+      if (orig.length + stat.length <= 280) {
+        content.social.x[tone].text = orig + stat;
+        content.social.x[tone].charCount = content.social.x[tone].text.length;
+      }
+    }
+  });
+
+  // Enrich LinkedIn — add data section
+  ['analyst', 'casual', 'hotTake'].forEach(function(tone) {
+    if (content.social?.linkedin?.[tone]) {
+      var dataSection = '\n\nBy the numbers:\n' + citations
+        .map(function(c) { return '- ' + c.name + ': ' + c.value + ' (' + c.source + ')'; })
+        .join('\n');
+      content.social.linkedin[tone].text += dataSection;
+      content.social.linkedin[tone].charCount = content.social.linkedin[tone].text.length;
+    }
+  });
+
+  // Enrich video scripts — add data to body
+  ['30s', '60s', '90s'].forEach(function(dur) {
+    ['analyst', 'casual', 'hotTake'].forEach(function(tone) {
+      if (content.scripts?.[dur]?.[tone]) {
+        var dataLine = ' The data tells the story: ' + shortStats + '.';
+        content.scripts[dur][tone].body += dataLine;
+        content.scripts[dur][tone].wordCount = countWords(
+          content.scripts[dur][tone].hook + ' ' +
+          content.scripts[dur][tone].body + ' ' +
+          content.scripts[dur][tone].cta
+        );
+      }
+    });
+  });
+
+  // Enrich threads — add a data post
+  ['analyst', 'casual', 'hotTake'].forEach(function(tone) {
+    if (content.thread?.[tone]?.posts) {
+      var dataTweet = { text: 'The numbers: ' + statsBlock, charCount: 0 };
+      dataTweet.charCount = dataTweet.text.length;
+      // Insert before the last post (CTA)
+      var posts = content.thread[tone].posts;
+      posts.splice(posts.length - 1, 0, dataTweet);
+      // Renumber
+      posts.forEach(function(p, i) {
+        var prefix = (i + 1) + '/' + posts.length + ' ';
+        var body = p.text.replace(/^\d+\/\d+\s*/, '');
+        p.text = prefix + body;
+        p.charCount = p.text.length;
+      });
+    }
+  });
+
+  // Enrich newsletter — add Key Data Points section
+  ['analyst', 'casual', 'hotTake'].forEach(function(tone) {
+    if (content.newsletter?.[tone]) {
+      var dataSection = '\n\n**Key Data Points:**\n' + citations
+        .map(function(c) { return '- ' + c.name + ': ' + c.value + ' (' + c.source + ', ' + c.date + ')'; })
+        .join('\n');
+      content.newsletter[tone].body += dataSection;
+      content.newsletter[tone].wordCount = countWords(content.newsletter[tone].body);
+    }
+  });
+
+  content.dataEnriched = true;
+  content.citations = citations;
+
+  return content;
+}
+
 export default generateContent;

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from './Toast';
 import ContentStudio from './ContentStudio';
-import { generateContent } from '../services/contentGenerator';
+import { generateContent, generateDataEnrichedContent } from '../services/contentGenerator';
+import { fetchContextData, extractDataCitations } from '../services/contextDataService';
+import MiniChart from './charts/MiniChart';
 
 // --- Collapsible section block with smooth transition -----------------------
 
@@ -331,7 +333,7 @@ function QuickActions({ item, onContentGenerated }) {
 
 // --- Tab bar ----------------------------------------------------------------
 
-function TabBar({ activeTab, onTabChange }) {
+function TabBar({ activeTab, onTabChange, dataEnriched = false }) {
   return (
     <div className="flex gap-1 bg-white/5 rounded-lg p-1">
       <button
@@ -346,6 +348,20 @@ function TabBar({ activeTab, onTabChange }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         Brief
+        {dataEnriched && <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />}
+      </button>
+      <button
+        onClick={() => onTabChange('data')}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 cursor-pointer ${
+          activeTab === 'data'
+            ? 'bg-sky-500/15 text-sky-400'
+            : 'text-gray-500 hover:text-gray-300'
+        }`}
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+        </svg>
+        Data
       </button>
       <button
         onClick={() => onTabChange('studio')}
@@ -372,6 +388,9 @@ function BriefPanel({ brief, item, onClose }) {
   const [content, setContent] = useState(null);
   const [studioFullScreen, setStudioFullScreen] = useState(false);
   const [tone, setTone] = useState('analyst');
+  const [contextData, setContextData] = useState(null);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataCitations, setDataCitations] = useState([]);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -403,20 +422,42 @@ function BriefPanel({ brief, item, onClose }) {
     }
   }, [brief]);
 
-  // Generate content when switching to studio tab for the first time
+  // Generate content or fetch data when switching tabs
   const handleTabChange = useCallback(
     (tab) => {
       setActiveTab(tab);
       if (tab === 'studio' && !content && item) {
         try {
-          const generated = generateContent(item);
+          const generated = dataCitations.length > 0
+            ? generateDataEnrichedContent(item, dataCitations)
+            : generateContent(item);
           setContent(generated);
         } catch {
           toast('Failed to generate content');
         }
       }
+      if (tab === 'data' && !contextData && !dataLoading && item) {
+        setDataLoading(true);
+        fetchContextData(item)
+          .then((data) => {
+            setContextData(data);
+            const citations = extractDataCitations(data);
+            setDataCitations(citations);
+            setDataLoading(false);
+            // Re-generate content with data if it was already generated
+            if (content && item && citations.length > 0) {
+              try {
+                setContent(generateDataEnrichedContent(item, citations));
+              } catch { /* keep existing content */ }
+            }
+          })
+          .catch(() => {
+            setDataLoading(false);
+            toast('Failed to fetch contextual data');
+          });
+      }
     },
-    [content, item],
+    [content, item, contextData, dataLoading],
   );
 
   // Handle content generated from quick actions
@@ -427,6 +468,9 @@ function BriefPanel({ brief, item, onClose }) {
   // Reset content when item changes
   useEffect(() => {
     setContent(null);
+    setContextData(null);
+    setDataCitations([]);
+    setDataLoading(false);
     setActiveTab('brief');
   }, [item]);
 
@@ -503,7 +547,7 @@ function BriefPanel({ brief, item, onClose }) {
           {/* Quick actions row */}
           <div className="flex items-center justify-between gap-2">
             <QuickActions item={item} onContentGenerated={handleContentGenerated} />
-            <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
+            <TabBar activeTab={activeTab} onTabChange={handleTabChange} dataEnriched={dataCitations.length > 0} />
           </div>
         </div>
 
@@ -535,6 +579,21 @@ function BriefPanel({ brief, item, onClose }) {
                 {brief.sections.structuralOutlook}
               </SectionBlock>
 
+              {/* Data Insights (shown when data is fetched) */}
+              {dataCitations.length > 0 && (
+                <SectionBlock heading="Data Insights">
+                  <div className="space-y-2">
+                    {dataCitations.map((c, i) => (
+                      <div key={i} className="flex items-baseline gap-2">
+                        <span className="shrink-0 text-sky-400 font-bold text-sm">{c.value}</span>
+                        <span className="text-gray-400 text-sm">{c.name}</span>
+                        <span className="text-[9px] text-gray-600 ml-auto shrink-0">{c.source}, {c.date}</span>
+                      </div>
+                    ))}
+                  </div>
+                </SectionBlock>
+              )}
+
               <div className="mb-4">
                 <h3 className="text-sm font-semibold uppercase tracking-widest text-amber-400/80 mb-2.5">
                   What to Watch Next
@@ -552,6 +611,81 @@ function BriefPanel({ brief, item, onClose }) {
                 </ul>
               </div>
             </>
+          )}
+
+          {activeTab === 'data' && (
+            <div className="space-y-4">
+              {/* Data citations summary */}
+              {dataCitations.length > 0 && (
+                <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-sky-400 mb-3">Key Data Points</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {dataCitations.map((c, i) => (
+                      <div key={i} className="space-y-0.5">
+                        <p className="text-[10px] text-gray-500 truncate">{c.name}</p>
+                        <p className="text-sm font-bold text-gray-100">{c.value}</p>
+                        <p className="text-[9px] text-gray-600">{c.source} &middot; {c.date}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading skeleton */}
+              {dataLoading && (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <div className="skeleton h-3 w-32" />
+                        <div className="skeleton h-3 w-16" />
+                      </div>
+                      <div className="skeleton h-6 w-20" />
+                      <div className="skeleton h-[140px] w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Charts grid */}
+              {!dataLoading && contextData?.indicators?.length > 0 && (
+                <div className="space-y-4">
+                  {contextData.indicators.map((indicator, i) => (
+                    <MiniChart
+                      key={indicator.id}
+                      title={indicator.name}
+                      data={indicator.data}
+                      unit={indicator.unit}
+                      chartType={indicator.chartType}
+                      source={indicator.source}
+                      latestValue={indicator.latestValue}
+                      latestDate={indicator.latestDate}
+                      country={indicator.country}
+                      color={i % 4 === 0 ? 'emerald' : i % 4 === 1 ? 'sky' : i % 4 === 2 ? 'amber' : 'red'}
+                      height={140}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!dataLoading && contextData && contextData.indicators.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                  <svg className="h-10 w-10 mb-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                  </svg>
+                  <p className="text-sm font-medium">No contextual data found</p>
+                  <p className="text-xs mt-1 text-gray-600">No matching indicators for this event</p>
+                </div>
+              )}
+
+              {/* Matched count footer */}
+              {contextData && contextData.indicators.length > 0 && (
+                <p className="text-[10px] text-gray-600 text-center">
+                  Showing {contextData.indicators.length} of {contextData.matchedCount} matched indicators &middot; Country: {contextData.countryCode}
+                </p>
+              )}
+            </div>
           )}
 
           {activeTab === 'studio' && (
