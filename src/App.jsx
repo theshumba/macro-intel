@@ -99,6 +99,11 @@ function App() {
     setSelectedId(null);
   }, []);
 
+  const selectedItem = useMemo(
+    () => items.find((i) => i.id === selectedId) || null,
+    [items, selectedId]
+  );
+
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
       <Header
@@ -125,56 +130,75 @@ function App() {
         </div>
 
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex items-center gap-3 text-gray-400">
-              <div className="h-5 w-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">
-                Fetching global intelligence feeds...
-              </span>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5 space-y-3" style={{ animationDelay: `${i * 0.1}s` }}>
+                <div className="flex gap-2">
+                  <div className="skeleton h-5 w-20" />
+                  <div className="skeleton h-5 w-14" />
+                </div>
+                <div className="skeleton h-5 w-full" />
+                <div className="skeleton h-4 w-3/4" />
+                <div className="skeleton h-4 w-full" />
+                <div className="flex justify-between">
+                  <div className="skeleton h-3 w-24" />
+                  <div className="skeleton h-3 w-12" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm">
-            Failed to load feeds: {error}
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center justify-between">
+            <span className="text-red-400 text-sm">Failed to load feeds: {error}</span>
+            <button
+              onClick={loadFeeds}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
           </div>
         )}
 
-        {!loading && view === "globe" && (
-          <GlobeView
-            items={filteredItems}
-            onSelect={handleSelect}
-            selectedId={selectedId}
-          />
-        )}
+        {!loading && (
+          <div key={view} className="animate-view-enter">
+            {view === "globe" && (
+              <GlobeView
+                items={filteredItems}
+                onSelect={handleSelect}
+                selectedId={selectedId}
+              />
+            )}
 
-        {!loading && view === "list" && (
-          <NewsList
-            items={filteredItems}
-            onSelect={handleSelect}
-            selectedId={selectedId}
-          />
-        )}
+            {view === "list" && (
+              <NewsList
+                items={filteredItems}
+                onSelect={handleSelect}
+                selectedId={selectedId}
+              />
+            )}
 
-        {!loading && view === "dashboard" && (
-          <DashboardView
-            items={filteredItems}
-            onSelect={handleSelect}
-            selectedId={selectedId}
-          />
-        )}
+            {view === "dashboard" && (
+              <DashboardView
+                items={filteredItems}
+                onSelect={handleSelect}
+                selectedId={selectedId}
+              />
+            )}
 
-        {!loading && view === "timeline" && (
-          <TimelineView
-            items={filteredItems}
-            onSelect={handleSelect}
-            selectedId={selectedId}
-          />
+            {view === "timeline" && (
+              <TimelineView
+                items={filteredItems}
+                onSelect={handleSelect}
+                selectedId={selectedId}
+              />
+            )}
+          </div>
         )}
       </main>
 
-      <BriefPanel brief={brief} onClose={handleCloseBrief} />
+      <BriefPanel brief={brief} item={selectedItem} onClose={handleCloseBrief} />
       <Toast />
     </div>
   );

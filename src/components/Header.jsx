@@ -9,13 +9,13 @@ function Header({ lastUpdated, itemCount, onRefresh, filtersOpen, onToggleFilter
     : "Never";
 
   return (
-    <header className="border-b border-gray-800 bg-[#0A0A0F]/80 backdrop-blur-sm sticky top-0 z-30">
+    <header className="bg-[#0A0A0F]/90 backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg sm:text-2xl font-bold tracking-widest text-gray-100">
-            MACRO INTEL
+            MACRO<span className="text-emerald-400">INTEL</span>
           </h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-0.5 truncate">
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5 truncate">
             Global Economics & Geopolitical Intelligence
           </p>
         </div>
@@ -45,13 +45,16 @@ function Header({ lastUpdated, itemCount, onRefresh, filtersOpen, onToggleFilter
 
           <button
             onClick={onRefresh}
-            className="p-2 rounded-lg bg-[#12121A] border border-gray-800 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/40 transition-all duration-200 cursor-pointer"
+            className="p-2 rounded-lg bg-[#12121A] border border-gray-800/60 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:rotate-180 transition-all duration-500 cursor-pointer"
             title="Refresh data"
           >
-            <span className="text-lg leading-none">&#8635;</span>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5M20.49 9A9 9 0 015.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 014.51 15" />
+            </svg>
           </button>
         </div>
       </div>
+      <div className="h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
     </header>
   );
 }

@@ -68,7 +68,7 @@ function TimelineView({ items = [], onSelect, selectedId }) {
   return (
     <div className="pb-16 md:pb-0">
       {/* Quick stats */}
-      <div className="flex flex-wrap gap-3 sm:gap-4 mb-6 text-xs text-gray-400">
+      <div className="flex flex-wrap gap-3 sm:gap-4 mb-6 text-xs text-gray-400 bg-[#12121A]/60 backdrop-blur-sm border border-gray-800/40 rounded-lg px-4 py-2.5">
         <span>
           <span className="text-gray-200 font-semibold">{stats.last24h}</span> events in 24h
         </span>
@@ -85,7 +85,7 @@ function TimelineView({ items = [], onSelect, selectedId }) {
       {/* Timeline */}
       <div className="relative">
         {/* Vertical line */}
-        <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-emerald-500/20" />
+        <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-500/40 via-emerald-500/20 to-transparent" />
 
         {grouped.map((bucket) => (
           <div key={bucket.label} className="mb-6">
@@ -94,15 +94,15 @@ function TimelineView({ items = [], onSelect, selectedId }) {
               <div className="w-[31px] flex justify-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/40 border-2 border-emerald-500/60" />
               </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400/70 bg-[#0A0A0F] px-2 py-0.5 rounded">
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400/70 bg-[#0A0A0F]/80 backdrop-blur-sm px-3 py-1 rounded-lg border border-emerald-500/10">
                 {bucket.label}
               </span>
             </div>
 
             {/* Events */}
             <div className="space-y-3">
-              {bucket.items.map((item) => (
-                <div key={item.id} className="flex items-start gap-3 ml-0">
+              {bucket.items.map((item, idx) => (
+                <div key={item.id} className="animate-card-enter flex items-start gap-3 ml-0" style={{ animationDelay: `${Math.min(idx * 0.05, 0.3)}s` }}>
                   {/* Timeline dot + connector */}
                   <div className="w-[31px] flex flex-col items-center shrink-0 pt-4">
                     <div className={`w-3 h-3 rounded-full ${dotColor(item.impactScore)} shadow-sm`} />
@@ -111,12 +111,13 @@ function TimelineView({ items = [], onSelect, selectedId }) {
                   {/* Event card */}
                   <button
                     onClick={() => onSelect(item)}
-                    className={`flex-1 text-left p-3 sm:p-4 rounded-xl transition-all cursor-pointer ${
+                    className={`flex-1 text-left p-3 sm:p-4 rounded-xl transition-all duration-300 cursor-pointer relative overflow-hidden ${
                       selectedId === item.id
-                        ? 'bg-[#12121A] border border-emerald-500/40 ring-1 ring-emerald-500/20'
-                        : 'bg-[#12121A] border border-gray-800 hover:border-gray-600'
+                        ? 'bg-[#12121A] border border-emerald-500/40 animate-pulse-glow'
+                        : 'bg-[#12121A] border border-gray-800/60 hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(16,185,129,0.08)]'
                     }`}
                   >
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${dotColor(item.impactScore)}`} />
                     {/* Badges row */}
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <CategoryBadge category={item.category} />

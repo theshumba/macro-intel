@@ -13,13 +13,19 @@ function avg(nums) {
   return nums.reduce((s, n) => s + n, 0) / nums.length;
 }
 
-function SummaryCard({ title, children }) {
+function SummaryCard({ title, children, index = 0 }) {
   return (
-    <div className="bg-[#12121A] border border-gray-800 rounded-xl p-4 sm:p-5 flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-        {title}
-      </h3>
-      {children}
+    <div
+      className="animate-card-enter bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden flex flex-col"
+      style={{ animationDelay: `${index * 0.1}s` }}
+    >
+      <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400/30 to-transparent" />
+      <div className="p-4 sm:p-5 flex flex-col gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          {title}
+        </h3>
+        {children}
+      </div>
     </div>
   );
 }
@@ -38,18 +44,26 @@ function TiltArrow({ direction }) {
   );
 }
 
-function HBar({ label, value, max, color = 'bg-emerald-500', suffix = '' }) {
+const BAR_GRADIENTS = {
+  red: 'from-red-600 to-red-400',
+  amber: 'from-amber-600 to-amber-400',
+  emerald: 'from-emerald-600 to-emerald-400',
+};
+
+function HBar({ label, value, max, color = 'emerald', suffix = '' }) {
   const pct = max > 0 ? Math.max((value / max) * 100, 4) : 0;
+  const colorKey = color.includes?.('red') ? 'red' : color.includes?.('amber') ? 'amber' : color;
+  const gradient = BAR_GRADIENTS[colorKey] || BAR_GRADIENTS.emerald;
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-gray-400 w-32 sm:w-40 truncate shrink-0">{label}</span>
-      <div className="flex-1 h-5 bg-gray-800/50 rounded-full overflow-hidden">
+    <div className="flex items-center gap-3 group">
+      <span className="text-xs text-gray-400 w-32 sm:w-40 truncate shrink-0 group-hover:text-gray-200 transition-colors">{label}</span>
+      <div className="flex-1 h-6 bg-gray-800/40 rounded-lg overflow-hidden">
         <div
-          className={`h-full rounded-full ${color} transition-all duration-500`}
+          className={`h-full rounded-lg bg-gradient-to-r ${gradient} transition-all duration-700 ease-out`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs text-gray-300 tabular-nums w-8 text-right shrink-0">
+      <span className="text-xs text-gray-300 tabular-nums w-10 text-right shrink-0 font-medium">
         {value}{suffix}
       </span>
     </div>
@@ -107,8 +121,8 @@ function DashboardView({ items = [], onSelect, selectedId }) {
     <div className="space-y-4 sm:space-y-6 pb-16 md:pb-0">
       {/* Row 1: Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <SummaryCard title="Event Count">
-          <div className="text-2xl font-bold text-gray-100">{items.length}</div>
+        <SummaryCard title="Event Count" index={0}>
+          <div className="text-2xl font-bold text-gray-100 animate-count-up">{items.length}</div>
           <div className="flex gap-3 text-xs">
             <span className="text-red-400">{stats.high} high</span>
             <span className="text-amber-400">{stats.medium} med</span>
@@ -116,7 +130,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
           </div>
         </SummaryCard>
 
-        <SummaryCard title="Inflation Pulse">
+        <SummaryCard title="Inflation Pulse" index={1}>
           <div className="flex items-center gap-3">
             <TiltArrow direction={stats.inflationTilt} />
             <span className="text-sm text-gray-300">
@@ -130,7 +144,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
           </div>
         </SummaryCard>
 
-        <SummaryCard title="Growth Signal">
+        <SummaryCard title="Growth Signal" index={2}>
           <div className="flex items-center gap-3">
             <TiltArrow direction={stats.growthTilt === 'up' ? 'up' : stats.growthTilt === 'down' ? 'down' : 'flat'} />
             <span className="text-sm text-gray-300">
@@ -144,7 +158,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
           </div>
         </SummaryCard>
 
-        <SummaryCard title="Top Category">
+        <SummaryCard title="Top Category" index={3}>
           <div className="text-lg font-bold text-gray-100">{stats.topCategory}</div>
           <div className="text-xs text-gray-500">
             {stats.categories[0]?.count || 0} events
@@ -153,7 +167,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
       </div>
 
       {/* Row 2: Regional Heat */}
-      <div className="bg-[#12121A] border border-gray-800 rounded-xl p-4 sm:p-5">
+      <div className="animate-card-enter bg-[#12121A] border border-gray-800/60 rounded-xl p-4 sm:p-5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
           Regional Distribution
         </h3>
@@ -164,14 +178,14 @@ function DashboardView({ items = [], onSelect, selectedId }) {
               label={r.name}
               value={r.count}
               max={stats.maxRegionCount}
-              color={r.avgImpact >= 7 ? 'bg-red-500/80' : r.avgImpact >= 4 ? 'bg-amber-500/80' : 'bg-emerald-500/80'}
+              color={r.avgImpact >= 7 ? 'red' : r.avgImpact >= 4 ? 'amber' : 'emerald'}
             />
           ))}
         </div>
       </div>
 
       {/* Row 3: Category Distribution */}
-      <div className="bg-[#12121A] border border-gray-800 rounded-xl p-4 sm:p-5">
+      <div className="animate-card-enter bg-[#12121A] border border-gray-800/60 rounded-xl p-4 sm:p-5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
           Category Breakdown
         </h3>
@@ -182,7 +196,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
               label={c.name}
               value={c.count}
               max={stats.maxCatCount}
-              color={c.avgImpact >= 7 ? 'bg-red-500/80' : c.avgImpact >= 4 ? 'bg-amber-500/80' : 'bg-emerald-500/80'}
+              color={c.avgImpact >= 7 ? 'red' : c.avgImpact >= 4 ? 'amber' : 'emerald'}
               suffix={` (${c.avgImpact.toFixed(1)})`}
             />
           ))}
@@ -190,7 +204,7 @@ function DashboardView({ items = [], onSelect, selectedId }) {
       </div>
 
       {/* Row 4: High Impact Events */}
-      <div className="bg-[#12121A] border border-gray-800 rounded-xl p-4 sm:p-5">
+      <div className="animate-card-enter bg-[#12121A] border border-gray-800/60 rounded-xl p-4 sm:p-5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
           Top Impact Events
         </h3>

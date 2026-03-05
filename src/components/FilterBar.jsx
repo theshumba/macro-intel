@@ -34,7 +34,7 @@ function FilterBar({ filters, onFilterChange, categories, regions, collapsed }) 
     filters.search;
 
   return (
-    <div className={`bg-[#12121A] border border-gray-800 rounded-xl p-3 sm:p-4 transition-all ${collapsed ? 'hidden sm:block' : ''}`}>
+    <div className={`bg-[#12121A]/80 backdrop-blur-sm border border-gray-800/60 rounded-xl p-3 sm:p-4 transition-all ${collapsed ? 'hidden sm:block' : 'animate-filter-expand sm:block'}`}>
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
         {/* Dropdowns row */}
         <div className="flex gap-2">

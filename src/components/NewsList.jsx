@@ -27,12 +27,13 @@ function NewsList({ items, onSelect, selectedId }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sorted.map((item) => (
+          {sorted.map((item, i) => (
             <NewsCard
               key={item.id}
               item={item}
               onSelect={onSelect}
               isSelected={selectedId === item.id}
+              index={i}
             />
           ))}
         </div>

@@ -115,8 +115,7 @@ function GlobeView({ items = [], onSelect, selectedId }) {
   return (
     <div
       ref={containerRef}
-      className="w-full"
-      style={{ minHeight: "calc(100vh - 200px)" }}
+      className="w-full min-h-[calc(100vh-200px)] rounded-xl border border-gray-800/30 overflow-hidden"
     >
       {dimensions.width > 0 && (
         <Globe

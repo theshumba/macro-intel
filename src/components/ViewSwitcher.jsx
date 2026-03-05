@@ -49,35 +49,46 @@ const VIEWS = [
 function ViewSwitcher({ view, onViewChange }) {
   return (
     <>
-      {/* Desktop: horizontal pill group */}
-      <div className="hidden md:flex rounded-lg border border-gray-700 overflow-hidden">
+      {/* Desktop: horizontal pill group with sliding indicator */}
+      <div className="hidden md:flex rounded-xl border border-gray-700/50 overflow-hidden relative bg-[#0A0A0F] p-1 gap-1">
+        <div
+          className="absolute top-1 bottom-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 transition-all duration-300 ease-out"
+          style={{
+            width: `calc(${100 / VIEWS.length}% - 4px)`,
+            left: `calc(${(VIEWS.findIndex(v => v.id === view) * 100) / VIEWS.length}% + 2px)`,
+          }}
+        />
         {VIEWS.map((v) => (
           <button
             key={v.id}
             onClick={() => onViewChange(v.id)}
-            className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 ${
+            className={`relative z-10 px-4 py-2 text-sm font-medium transition-colors duration-200 cursor-pointer flex items-center gap-2 rounded-lg ${
               view === v.id
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-[#12121A] text-gray-400 hover:text-gray-200'
-            } ${v.id !== 'timeline' ? 'border-r border-gray-700' : ''}`}
+                ? 'text-emerald-400'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
           >
+            {v.icon}
             {v.label}
           </button>
         ))}
       </div>
 
       {/* Mobile: fixed bottom tab bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#12121A] border-t border-gray-800 flex items-center justify-around h-14 safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#12121A]/95 backdrop-blur-sm border-t border-gray-800/60 flex items-center justify-around h-14 safe-area-bottom">
         {VIEWS.map((v) => (
           <button
             key={v.id}
             onClick={() => onViewChange(v.id)}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors cursor-pointer ${
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-all duration-200 cursor-pointer relative ${
               view === v.id
                 ? 'text-emerald-400'
                 : 'text-gray-500'
             }`}
           >
+            {view === v.id && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-emerald-400" />
+            )}
             {v.icon}
             <span className="text-[10px] font-medium">{v.label}</span>
           </button>

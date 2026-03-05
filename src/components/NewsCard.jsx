@@ -16,16 +16,22 @@ function timeAgo(dateString) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function NewsCard({ item, onSelect, isSelected }) {
+function NewsCard({ item, onSelect, isSelected, index }) {
   return (
     <article
       onClick={() => onSelect(item)}
-      className={`bg-[#12121A] rounded-xl p-5 cursor-pointer transition-all duration-200 group ${
+      style={index !== undefined ? { animationDelay: `${Math.min(index * 0.05, 0.5)}s` } : undefined}
+      className={`animate-card-enter bg-[#12121A] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 group relative ${
         isSelected
-          ? "border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-          : "border border-gray-800 hover:border-gray-600 hover:shadow-[0_0_20px_rgba(255,255,255,0.03)]"
+          ? "border border-emerald-500/50 animate-pulse-glow"
+          : "border border-gray-800/60 hover:border-gray-600 hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(16,185,129,0.08)]"
       }`}
     >
+      {/* Impact color bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+        item.impactScore >= 7 ? 'bg-red-500' : item.impactScore >= 4 ? 'bg-amber-500' : 'bg-gray-600'
+      }`} />
+      <div className="p-5 pl-5">
       {/* Header: badges */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <CategoryBadge category={item.category} />
@@ -57,6 +63,7 @@ function NewsCard({ item, onSelect, isSelected }) {
         <span className="tabular-nums">
           {item.publishedAt ? timeAgo(item.publishedAt) : ""}
         </span>
+      </div>
       </div>
     </article>
   );
