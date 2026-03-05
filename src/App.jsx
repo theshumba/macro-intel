@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import Header from "./components/Header";
 import FilterBar from "./components/FilterBar";
 import NewsList from "./components/NewsList";
+import GlobeView from "./components/GlobeView";
 import BriefPanel from "./components/BriefPanel";
 import { fetchAllFeeds, CATEGORIES, REGIONS } from "./services/feedService";
 import { generateBrief } from "./services/briefGenerator";
@@ -22,6 +23,7 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [brief, setBrief] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [view, setView] = useState("globe"); // "globe" | "list"
 
   const loadFeeds = useCallback(async () => {
     setLoading(true);
@@ -49,7 +51,8 @@ function App() {
       if (filters.impact) {
         const score = item.impactScore;
         if (filters.impact === "low" && score > 3) return false;
-        if (filters.impact === "medium" && (score < 4 || score > 6)) return false;
+        if (filters.impact === "medium" && (score < 4 || score > 6))
+          return false;
         if (filters.impact === "high" && score < 7) return false;
       }
 
@@ -96,19 +99,48 @@ function App() {
         onRefresh={loadFeeds}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        <FilterBar
-          filters={filters}
-          onFilterChange={setFilters}
-          categories={CATEGORIES}
-          regions={REGIONS}
-        />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        {/* View toggle + filters */}
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-gray-700 overflow-hidden">
+            <button
+              onClick={() => setView("globe")}
+              className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                view === "globe"
+                  ? "bg-emerald-500/20 text-emerald-400 border-r border-emerald-500/30"
+                  : "bg-[#12121A] text-gray-400 border-r border-gray-700 hover:text-gray-200"
+              }`}
+            >
+              Globe
+            </button>
+            <button
+              onClick={() => setView("list")}
+              className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                view === "list"
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-[#12121A] text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              List
+            </button>
+          </div>
+          <div className="flex-1">
+            <FilterBar
+              filters={filters}
+              onFilterChange={setFilters}
+              categories={CATEGORIES}
+              regions={REGIONS}
+            />
+          </div>
+        </div>
 
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="flex items-center gap-3 text-gray-400">
               <div className="h-5 w-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">Fetching global intelligence feeds...</span>
+              <span className="text-sm">
+                Fetching global intelligence feeds...
+              </span>
             </div>
           </div>
         )}
@@ -119,7 +151,15 @@ function App() {
           </div>
         )}
 
-        {!loading && (
+        {!loading && view === "globe" && (
+          <GlobeView
+            items={filteredItems}
+            onSelect={handleSelect}
+            selectedId={selectedId}
+          />
+        )}
+
+        {!loading && view === "list" && (
           <NewsList
             items={filteredItems}
             onSelect={handleSelect}
