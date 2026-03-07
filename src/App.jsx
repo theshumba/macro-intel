@@ -1,42 +1,48 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import Header from "./components/Header";
-import FilterBar from "./components/FilterBar";
-import NewsList from "./components/NewsList";
-import GlobeView from "./components/GlobeView";
-import DashboardView from "./components/DashboardView";
-import TimelineView from "./components/TimelineView";
-import MarketsView from "./components/MarketsView";
-import BriefPanel from "./components/BriefPanel";
-import ViewSwitcher from "./components/ViewSwitcher";
-import Toast from "./components/Toast";
-import { fetchAllFeeds, CATEGORIES, REGIONS } from "./services/feedService";
-import { generateBrief } from "./services/briefGenerator";
+// ---------------------------------------------------------------------------
+// App.jsx — Main application shell for Macro Intel v5
+// React Router for multi-page navigation, new ingestion engine,
+// new event model, new severity-based UI.
+// ---------------------------------------------------------------------------
+
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import Header from './components/Header';
+import Navigation from './components/Navigation';
+import FilterBar from './components/FilterBar';
+import EventDetailPanel from './components/EventDetailPanel';
+import Toast from './components/Toast';
+import DashboardPage from './pages/DashboardPage';
+import EventsPage from './pages/EventsPage';
+import MapPage from './pages/MapPage';
+import MarketsPage from './pages/MarketsPage';
+import ArchivePage from './pages/ArchivePage';
+import { ingestAll, CATEGORIES_COMPAT, REGIONS_COMPAT } from './services/ingestionEngine';
 
 const DEFAULT_FILTERS = {
-  category: "",
-  region: "",
-  impact: "",
-  dateRange: "all",
-  search: "",
+  category: '',
+  region: '',
+  severity: '',
+  dateRange: 'all',
+  search: '',
 };
 
 function App() {
-  const [items, setItems] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [selectedId, setSelectedId] = useState(null);
-  const [brief, setBrief] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [view, setView] = useState("globe");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const loadFeeds = useCallback(async () => {
+  // ---- Data loading -------------------------------------------------------
+
+  const loadEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAllFeeds();
-      setItems(data);
+      const data = await ingestAll();
+      setEvents(data);
       setLastUpdated(new Date());
     } catch (err) {
       setError(err.message);
@@ -46,94 +52,100 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadFeeds();
-    // Auto-refresh every 15 minutes
-    const interval = setInterval(loadFeeds, 15 * 60 * 1000);
+    loadEvents();
+    // Auto-refresh: news every 10 minutes
+    const interval = setInterval(loadEvents, 10 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [loadFeeds]);
+  }, [loadEvents]);
 
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      if (filters.category && item.category !== filters.category) return false;
-      if (filters.region && item.region !== filters.region) return false;
+  // ---- Filtering ----------------------------------------------------------
 
-      if (filters.impact) {
-        const score = item.impactScore;
-        if (filters.impact === "low" && score > 3) return false;
-        if (filters.impact === "medium" && (score < 4 || score > 6))
-          return false;
-        if (filters.impact === "high" && score < 7) return false;
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      if (filters.category && event.category !== filters.category) return false;
+
+      if (filters.region) {
+        if (event.primaryRegion !== filters.region &&
+            !event.secondaryRegions?.includes(filters.region)) return false;
       }
 
-      if (filters.dateRange && filters.dateRange !== "all") {
+      if (filters.severity) {
+        const minSeverity = filters.severity === 'major' ? 3
+          : filters.severity === 'material' ? 2 : 1;
+        if (event.severity < minSeverity) return false;
+      }
+
+      if (filters.dateRange && filters.dateRange !== 'all') {
         const now = new Date();
-        const published = new Date(item.publishedAt);
+        const published = new Date(event.publishedAt);
         const hoursAgo = (now - published) / (1000 * 60 * 60);
-        if (filters.dateRange === "today" && hoursAgo > 24) return false;
-        if (filters.dateRange === "3days" && hoursAgo > 72) return false;
-        if (filters.dateRange === "week" && hoursAgo > 168) return false;
+        if (filters.dateRange === 'today' && hoursAgo > 24) return false;
+        if (filters.dateRange === '3days' && hoursAgo > 72) return false;
+        if (filters.dateRange === 'week' && hoursAgo > 168) return false;
       }
 
       if (filters.search) {
         const query = filters.search.toLowerCase();
-        const searchable = `${item.headline} ${item.summary}`.toLowerCase();
+        const searchable = [
+          event.headline,
+          event.executiveSummary,
+          event.category,
+          event.primaryCountry,
+          event.primaryRegion,
+          ...(event.subcategoryTags || []),
+          ...(event.sources?.map(s => s.name) || []),
+        ].join(' ').toLowerCase();
         if (!searchable.includes(query)) return false;
       }
 
       return true;
     });
-  }, [items, filters]);
+  }, [events, filters]);
 
-  const handleSelect = useCallback((item) => {
-    setSelectedId((prev) => {
-      if (prev === item.id) {
-        setBrief(null);
-        return null;
-      }
-      setBrief(generateBrief(item));
-      return item.id;
-    });
+  // ---- Event selection ----------------------------------------------------
+
+  const handleSelectEvent = useCallback((event) => {
+    setSelectedEvent(prev =>
+      prev?.eventId === event.eventId ? null : event
+    );
   }, []);
 
-  const handleCloseBrief = useCallback(() => {
-    setBrief(null);
-    setSelectedId(null);
+  const handleCloseDetail = useCallback(() => {
+    setSelectedEvent(null);
   }, []);
 
-  const selectedItem = useMemo(
-    () => items.find((i) => i.id === selectedId) || null,
-    [items, selectedId]
-  );
+  // ---- Render -------------------------------------------------------------
 
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
       <Header
         lastUpdated={lastUpdated}
-        itemCount={filteredItems.length}
-        onRefresh={loadFeeds}
+        itemCount={filteredEvents.length}
+        onRefresh={loadEvents}
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 pb-20 md:pb-6">
-        {/* View toggle + filters */}
+        {/* Navigation + Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <ViewSwitcher view={view} onViewChange={setView} />
+          <Navigation />
           <div className="flex-1">
             <FilterBar
               filters={filters}
               onFilterChange={setFilters}
-              categories={CATEGORIES}
-              regions={REGIONS}
+              categories={CATEGORIES_COMPAT}
+              regions={REGIONS_COMPAT}
               collapsed={!filtersOpen}
             />
           </div>
         </div>
 
-        {loading && (
+        {/* Loading state */}
+        {loading && events.length === 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5 space-y-3" style={{ animationDelay: `${i * 0.1}s` }}>
+              <div key={i} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5 space-y-3">
                 <div className="flex gap-2">
                   <div className="skeleton h-5 w-20" />
                   <div className="skeleton h-5 w-14" />
@@ -150,11 +162,12 @@ function App() {
           </div>
         )}
 
+        {/* Error state */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center justify-between">
             <span className="text-red-400 text-sm">Failed to load feeds: {error}</span>
             <button
-              onClick={loadFeeds}
+              onClick={loadEvents}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors cursor-pointer"
             >
               Retry
@@ -162,48 +175,56 @@ function App() {
           </div>
         )}
 
-        {!loading && (
-          <div key={view} className="animate-view-enter">
-            {view === "globe" && (
-              <GlobeView
-                items={filteredItems}
-                onSelect={handleSelect}
-                selectedId={selectedId}
-              />
-            )}
-
-            {view === "list" && (
-              <NewsList
-                items={filteredItems}
-                onSelect={handleSelect}
-                selectedId={selectedId}
-              />
-            )}
-
-            {view === "dashboard" && (
-              <DashboardView
-                items={filteredItems}
-                onSelect={handleSelect}
-                selectedId={selectedId}
-              />
-            )}
-
-            {view === "timeline" && (
-              <TimelineView
-                items={filteredItems}
-                onSelect={handleSelect}
-                selectedId={selectedId}
-              />
-            )}
-
-            {view === "markets" && (
-              <MarketsView />
-            )}
-          </div>
-        )}
+        {/* Routes */}
+        {!loading || events.length > 0 ? (
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <DashboardPage
+                  events={filteredEvents}
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+            <Route
+              path="/events"
+              element={
+                <EventsPage
+                  events={filteredEvents}
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+            <Route
+              path="/map"
+              element={
+                <MapPage
+                  events={filteredEvents}
+                  onSelectEvent={handleSelectEvent}
+                />
+              }
+            />
+            <Route path="/markets" element={<MarketsPage />} />
+            <Route
+              path="/archive"
+              element={
+                <ArchivePage
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+          </Routes>
+        ) : null}
       </main>
 
-      <BriefPanel brief={brief} item={selectedItem} onClose={handleCloseBrief} />
+      {/* Event Detail Panel */}
+      <EventDetailPanel event={selectedEvent} onClose={handleCloseDetail} />
       <Toast />
     </div>
   );

@@ -1,7 +1,7 @@
-const IMPACT_RANGES = [
-  { label: "Low", value: "low", range: "1-3" },
-  { label: "Medium", value: "medium", range: "4-6" },
-  { label: "High", value: "high", range: "7-10" },
+const SEVERITY_OPTIONS = [
+  { label: "Routine", value: "routine" },
+  { label: "Material", value: "material" },
+  { label: "Major", value: "major" },
 ];
 
 const DATE_OPTIONS = [
@@ -20,7 +20,7 @@ function FilterBar({ filters, onFilterChange, categories, regions, collapsed }) 
     onFilterChange({
       category: "",
       region: "",
-      impact: "",
+      severity: "",
       dateRange: "all",
       search: "",
     });
@@ -29,7 +29,7 @@ function FilterBar({ filters, onFilterChange, categories, regions, collapsed }) 
   const hasActiveFilters =
     filters.category ||
     filters.region ||
-    filters.impact ||
+    filters.severity ||
     (filters.dateRange && filters.dateRange !== "all") ||
     filters.search;
 
@@ -74,18 +74,17 @@ function FilterBar({ filters, onFilterChange, categories, regions, collapsed }) 
         {/* Impact + Date row */}
         <div className="flex flex-wrap gap-2 sm:gap-3 sm:items-center">
           <div className="flex items-center gap-1">
-            {IMPACT_RANGES.map(({ label, value, range }) => (
+            {SEVERITY_OPTIONS.map(({ label, value }) => (
               <button
                 key={value}
-                onClick={() => updateFilter("impact", filters.impact === value ? "" : value)}
+                onClick={() => updateFilter("severity", filters.severity === value ? "" : value)}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer ${
-                  filters.impact === value
+                  filters.severity === value
                     ? "bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500"
                     : "bg-[#0A0A0F] text-gray-400 border border-gray-700 hover:border-gray-500"
                 }`}
               >
                 {label}
-                <span className="text-gray-500 ml-1 hidden sm:inline">{range}</span>
               </button>
             ))}
           </div>
