@@ -5,11 +5,12 @@
 // ---------------------------------------------------------------------------
 
 import { createEvent, createSource, SOURCE_TIERS } from './eventModel.js';
-import { ACTIVE_FEEDS } from './sourceRegistry.js';
+import { ACTIVE_FEEDS, getActiveFeedsByPollInterval } from './sourceRegistry.js';
 import { geolocateEvent, inferRegionFromSource } from './geolocation.js';
 import { classifyCategory, extractTags, classifySeverity, classifyConfidence } from './classifier.js';
 import { clusterEvents, deduplicateClusters } from './clustering.js';
 import { storeEvents } from './archiveDb.js';
+import { stripHtml, getTagText, parseXml } from './xmlParser.js';
 
 // ---- Configuration --------------------------------------------------------
 
@@ -20,62 +21,6 @@ const CORS_PROXIES = [
   'https://corsproxy.io/?url=',
   'https://api.codetabs.com/v1/proxy?quest=',
 ];
-
-// ---- XML Parsing ----------------------------------------------------------
-
-function stripHtml(html) {
-  if (!html) return '';
-  let text = html.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
-  text = text.replace(/<[^>]*>/g, '');
-  text = text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-  return text.trim();
-}
-
-function getTagText(item, tagName) {
-  const el = item.getElementsByTagName(tagName)[0];
-  return el ? (el.textContent || '') : '';
-}
-
-function parseXml(xmlString) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlString, 'text/xml');
-  if (doc.querySelector('parsererror')) return [];
-
-  const items = [];
-
-  const rssItems = doc.getElementsByTagName('item');
-  if (rssItems.length > 0) {
-    for (const item of rssItems) {
-      items.push({
-        title: stripHtml(getTagText(item, 'title')),
-        description: stripHtml(getTagText(item, 'description')),
-        link: getTagText(item, 'link').trim(),
-        pubDate: getTagText(item, 'pubDate'),
-      });
-    }
-    return items;
-  }
-
-  const entries = doc.getElementsByTagName('entry');
-  for (const entry of entries) {
-    const linkEl = entry.getElementsByTagName('link')[0];
-    const href = linkEl ? (linkEl.getAttribute('href') || linkEl.textContent || '') : '';
-    items.push({
-      title: stripHtml(getTagText(entry, 'title')),
-      description: stripHtml(getTagText(entry, 'summary') || getTagText(entry, 'content')),
-      link: href.trim(),
-      pubDate: getTagText(entry, 'updated') || getTagText(entry, 'published'),
-    });
-  }
-
-  return items;
-}
 
 // ---- Fetch Helpers --------------------------------------------------------
 
