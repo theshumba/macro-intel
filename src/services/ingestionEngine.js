@@ -11,6 +11,8 @@ import { classifyCategory, extractTags, classifySeverity, classifyConfidence } f
 import { clusterEvents, deduplicateClusters } from './clustering.js';
 import { storeEvents } from './archiveDb.js';
 import { stripHtml, getTagText, parseXml } from './xmlParser.js';
+import { attachContext } from './contextEngine.js';
+import { linkMarkets } from './marketLinker.js';
 
 // ---- Configuration --------------------------------------------------------
 
@@ -84,7 +86,7 @@ async function fetchAndEnrichFeed(feed) {
       const severity = classifySeverity(combinedText, 1, geo.crossRegionFlag);
       const confidence = classifyConfidence([source]);
 
-      return createEvent({
+      const event = createEvent({
         headline: item.title,
         executiveSummary: item.description,
         severity,
@@ -101,6 +103,10 @@ async function fetchAndEnrichFeed(feed) {
         category,
         subcategoryTags: tags,
       });
+
+      attachContext(event);
+      linkMarkets(event);
+      return event;
     });
   } catch (err) {
     console.warn(`[ingestion] ${feed.name}: ${err.message}`);
@@ -128,7 +134,7 @@ function enrichWorkerItems(workerData) {
     const tags = extractTags(combinedText);
     const severity = classifySeverity(combinedText, 1, geo.crossRegionFlag);
 
-    return createEvent({
+    const event = createEvent({
       headline: item.title,
       executiveSummary: item.description,
       severity,
@@ -145,6 +151,10 @@ function enrichWorkerItems(workerData) {
       category,
       subcategoryTags: tags,
     });
+
+    attachContext(event);
+    linkMarkets(event);
+    return event;
   });
 }
 
@@ -261,7 +271,7 @@ function generateDemoData() {
     const tags = extractTags(combinedText);
     const severity = classifySeverity(combinedText, 1, geo.crossRegionFlag);
 
-    return createEvent({
+    const event = createEvent({
       headline: d.headline,
       executiveSummary: d.summary,
       severity,
@@ -278,6 +288,10 @@ function generateDemoData() {
       category,
       subcategoryTags: tags,
     });
+
+    attachContext(event);
+    linkMarkets(event);
+    return event;
   });
 }
 

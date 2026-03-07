@@ -3,11 +3,14 @@
 // Replaces BriefPanel with factual, source-driven display.
 // ---------------------------------------------------------------------------
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { SEVERITY } from '../services/eventModel.js';
 import { generateSummary } from '../services/summaryEngine.js';
+import { getEventLog } from '../services/archiveDb.js';
 
 function EventDetailPanel({ event, onClose }) {
+  const [logEntries, setLogEntries] = useState([]);
+
   // Close on ESC
   useEffect(() => {
     if (!event) return;
@@ -19,6 +22,12 @@ function EventDetailPanel({ event, onClose }) {
       document.body.style.overflow = '';
     };
   }, [event, onClose]);
+
+  // Fetch lifecycle log
+  useEffect(() => {
+    if (!event?.eventId) { setLogEntries([]); return; }
+    getEventLog(event.eventId).then(setLogEntries).catch(() => setLogEntries([]));
+  }, [event?.eventId]);
 
   if (!event) return null;
 
@@ -135,6 +144,56 @@ function EventDetailPanel({ event, onClose }) {
             </Section>
           )}
 
+          {/* Country Context (Phase 2) */}
+          {event.countryContext && (
+            <Section title={`${event.primaryCountry} Context`}>
+              <div className="space-y-2">
+                {Object.entries(event.countryContext).map(([key, data]) => (
+                  <div key={key} className="flex items-baseline justify-between text-sm bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40">
+                    <span className="text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <div className="text-right">
+                      <span className="text-gray-200 font-medium">{data.value}</span>
+                      <span className="text-gray-600 text-[10px] ml-2">{data.source}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Market Instruments (Phase 3) */}
+          {event.relatedMarketInstruments?.length > 0 && (
+            <Section title="Linked Markets">
+              <div className="flex flex-wrap gap-2">
+                {event.relatedMarketInstruments.map((inst, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40">
+                    <InstrumentTypeDot type={inst.type} />
+                    <span className="text-sm text-gray-300">{inst.name}</span>
+                    <span className="text-[10px] text-gray-600 capitalize">{inst.type}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Event Lifecycle (Phase 4) */}
+          {logEntries.length > 0 && (
+            <Section title="Event Log">
+              <div className="space-y-1.5">
+                {logEntries.map((entry, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="text-gray-600 tabular-nums shrink-0">
+                      {new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-gray-400">
+                      {formatLogAction(entry.action)}{entry.details ? ` — ${entry.details}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           {/* Tags */}
           {event.subcategoryTags?.length > 0 && (
             <Section title="Tags">
@@ -209,6 +268,28 @@ function TierDot({ tier }) {
       title={`Tier ${tier}: ${labels[tier] || 'Unknown'}`}
     />
   );
+}
+
+function InstrumentTypeDot({ type }) {
+  const colors = {
+    currency: 'bg-emerald-400',
+    bond: 'bg-sky-400',
+    index: 'bg-amber-400',
+    commodity: 'bg-orange-400',
+  };
+  return <span className={`w-2 h-2 rounded-full shrink-0 ${colors[type] || 'bg-gray-400'}`} />;
+}
+
+function formatLogAction(action) {
+  const labels = {
+    ingested: 'Created from feed',
+    updated: 'Updated',
+    'status_change:confirmed': 'Status: Confirmed',
+    'status_change:resolved': 'Status: Resolved',
+    'status_change:downgraded': 'Status: Downgraded',
+    'status_change:updated': 'Status: Updated',
+  };
+  return labels[action] || action.replace(/_/g, ' ');
 }
 
 export default EventDetailPanel;

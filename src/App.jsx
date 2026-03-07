@@ -19,6 +19,7 @@ import ArchivePage from './pages/ArchivePage';
 import RegionPage from './pages/RegionPage';
 import CountryPage from './pages/CountryPage';
 import ThemePage from './pages/ThemePage';
+import DataExplorerPage from './pages/DataExplorerPage';
 import { ingestAll, ingestByPollInterval, CATEGORIES_COMPAT, REGIONS_COMPAT } from './services/ingestionEngine';
 
 const DEFAULT_FILTERS = {
@@ -262,6 +263,7 @@ function App() {
               }
             />
             <Route path="/markets" element={<MarketsPage />} />
+            <Route path="/data" element={<DataExplorerPage />} />
             <Route
               path="/archive"
               element={

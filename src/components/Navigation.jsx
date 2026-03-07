@@ -47,6 +47,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to: '/data',
+    label: 'Data',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
+        <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M20 7c0 2.21-3.582 4-8 4S4 9.21 4 7s3.582-4 8-4 8 1.79 8 4z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M4 12c0 2.21 3.582 4 8 4s8-1.79 8-4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     to: '/archive',
     label: 'Archive',
     icon: (

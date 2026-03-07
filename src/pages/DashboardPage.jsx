@@ -6,10 +6,30 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import EventCard from '../components/EventCard.jsx';
 import { SEVERITY } from '../services/eventModel.js';
+import 'leaflet/dist/leaflet.css';
 
 function DashboardPage({ events, onSelectEvent, selectedEventId }) {
+  // Geolocated events for map preview
+  const mappableEvents = useMemo(() =>
+    events.filter(e => e.coordinates?.lat && e.coordinates?.lng).slice(0, 50),
+  [events]);
+
+  // Market instruments from events
+  const topInstruments = useMemo(() => {
+    const counts = {};
+    for (const e of events) {
+      for (const inst of (e.relatedMarketInstruments || [])) {
+        const key = inst.name;
+        if (!counts[key]) counts[key] = { ...inst, count: 0 };
+        counts[key].count++;
+      }
+    }
+    return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [events]);
+
   // Separate events by severity and type
   const { majorEvents, materialEvents, officialStatements, recentEvents, regionBreakdown, categoryBreakdown } = useMemo(() => {
     const major = events.filter(e => e.severity >= SEVERITY.MAJOR);
@@ -56,6 +76,59 @@ function DashboardPage({ events, onSelectEvent, selectedEventId }) {
         <StatCard label="Major" value={majorEvents.length} color="text-red-400" />
         <StatCard label="Material" value={materialEvents.length} color="text-amber-400" />
         <StatCard label="Sources" value={countUniqueSources(events)} color="text-sky-400" />
+      </div>
+
+      {/* Dashboard widgets: Market Snapshot + Map Preview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Market Snapshot */}
+        <Link to="/markets" className="block group">
+          <div className="bg-[#12121A] rounded-xl border border-gray-800/60 p-4 hover:border-emerald-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Market Snapshot</h3>
+              <span className="text-[10px] text-gray-600 group-hover:text-emerald-400 transition-colors">View Markets →</span>
+            </div>
+            {topInstruments.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {topInstruments.map(inst => (
+                  <div key={inst.name} className="flex items-center gap-2 bg-[#0A0A0F] rounded-lg px-2.5 py-1.5 border border-gray-800/40">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      inst.type === 'currency' ? 'bg-emerald-400' :
+                      inst.type === 'bond' ? 'bg-sky-400' :
+                      inst.type === 'commodity' ? 'bg-orange-400' : 'bg-amber-400'
+                    }`} />
+                    <span className="text-xs text-gray-300 truncate">{inst.name}</span>
+                    <span className="text-[10px] text-gray-600 ml-auto tabular-nums">{inst.count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">No market data linked yet.</p>
+            )}
+          </div>
+        </Link>
+
+        {/* Map Preview */}
+        <Link to="/map" className="block group">
+          <div className="bg-[#12121A] rounded-xl border border-gray-800/60 overflow-hidden hover:border-emerald-500/30 transition-colors">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Event Map</h3>
+              <span className="text-[10px] text-gray-600 group-hover:text-emerald-400 transition-colors">Open Map →</span>
+            </div>
+            <div className="h-40 pointer-events-none">
+              <MapContainer center={[25, 10]} zoom={1} className="h-full w-full"
+                style={{ background: '#0A0A0F' }} zoomControl={false} dragging={false}
+                scrollWheelZoom={false} doubleClickZoom={false} touchZoom={false} attributionControl={false}>
+                <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                {mappableEvents.map(e => (
+                  <CircleMarker key={e.eventId} center={[e.coordinates.lat, e.coordinates.lng]}
+                    radius={e.severity >= 3 ? 5 : e.severity >= 2 ? 4 : 3}
+                    fillColor={e.severity >= 3 ? '#ef4444' : e.severity >= 2 ? '#f59e0b' : '#9ca3af'}
+                    color="transparent" fillOpacity={0.8} />
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Major events panel */}
