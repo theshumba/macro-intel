@@ -31,11 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. IMF and World Bank feed events are classified to correct regions (not "Global Maritime / Strategic Waterways")
   4. News feeds poll at 10-minute intervals, official feeds at 15-minute intervals, and market data at 1-5 minute intervals (observable in console logs)
   5. XML parsing functions (stripHtml, getTagText, parseXml) exist in a single shared module with no duplication in browser-side code
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: Dead code removal and dependency cleanup
-- [ ] 01-02: Bug fixes, tiered polling, and XML extraction
+- [ ] 01-01-PLAN.md -- Dead code removal, unused dependency cleanup, and IMF/World Bank region fix
+- [ ] 01-02-PLAN.md -- XML parsing extraction to shared module and tiered polling implementation
 
 ### Phase 2: Context Engine
 **Goal**: Events automatically display relevant country-level context (water stress, energy dependency, trade openness) with clear source attribution, giving the user immediate analytical depth without leaving the event view
