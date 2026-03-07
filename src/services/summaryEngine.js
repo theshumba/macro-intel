@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // summaryEngine.js — Plain English event summarization
-// Replaces the jargon-heavy briefGenerator with factual, concise output.
+// Produces factual, concise event summaries in plain English.
 // Severity-based: Routine gets less, Major gets more.
 // ---------------------------------------------------------------------------
 

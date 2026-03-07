@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // ingestionEngine.js — Live news ingestion engine for Macro Intel
-// Replaces the old feedService with proper source expansion, classification,
-// geolocation, clustering, deduplication, and archive storage.
+// Handles source expansion, classification, geolocation, clustering,
+// deduplication, and archive storage.
 // ---------------------------------------------------------------------------
 
 import { createEvent, createSource, SOURCE_TIERS } from './eventModel.js';
