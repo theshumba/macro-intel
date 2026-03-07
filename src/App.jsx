@@ -19,7 +19,7 @@ import ArchivePage from './pages/ArchivePage';
 import RegionPage from './pages/RegionPage';
 import CountryPage from './pages/CountryPage';
 import ThemePage from './pages/ThemePage';
-import { ingestAll, CATEGORIES_COMPAT, REGIONS_COMPAT } from './services/ingestionEngine';
+import { ingestAll, ingestByPollInterval, CATEGORIES_COMPAT, REGIONS_COMPAT } from './services/ingestionEngine';
 
 const DEFAULT_FILTERS = {
   category: '',
@@ -54,12 +54,61 @@ function App() {
     }
   }, []);
 
+  // Merge strategy for tiered updates: update existing events by eventId,
+  // append new ones. No full re-dedup needed since ingestByPollInterval
+  // already deduplicates its batch internally.
+  const mergeEvents = useCallback((newEvents) => {
+    setEvents(prev => {
+      const eventMap = new Map(prev.map(e => [e.eventId, e]));
+      for (const event of newEvents) {
+        eventMap.set(event.eventId, event);
+      }
+      return Array.from(eventMap.values());
+    });
+    setLastUpdated(new Date());
+  }, []);
+
   useEffect(() => {
+    // Initial load: fetch ALL feeds to avoid cold-start gaps
     loadEvents();
-    // Auto-refresh: news every 10 minutes
-    const interval = setInterval(loadEvents, 10 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [loadEvents]);
+
+    // Tiered polling intervals for subsequent refreshes
+    // Tier 2 (news feeds): refresh every 10 minutes
+    const newsInterval = setInterval(async () => {
+      console.info('[polling] Refreshing feeds with pollMinutes <= 10');
+      try {
+        const newEvents = await ingestByPollInterval(10);
+        if (newEvents.length > 0) mergeEvents(newEvents);
+      } catch (err) {
+        console.warn('[polling] Tier 10min refresh failed:', err.message);
+      }
+    }, 10 * 60 * 1000);
+
+    // Tier 1 (official feeds): refresh every 15 minutes
+    // This also catches news feeds at the 15-min mark, which is fine
+    const officialInterval = setInterval(async () => {
+      console.info('[polling] Refreshing feeds with pollMinutes <= 15');
+      try {
+        const newEvents = await ingestByPollInterval(15);
+        if (newEvents.length > 0) mergeEvents(newEvents);
+      } catch (err) {
+        console.warn('[polling] Tier 15min refresh failed:', err.message);
+      }
+    }, 15 * 60 * 1000);
+
+    // TODO: When market tier feeds (Tier 4, pollMinutes: 1-5) are implemented,
+    // add a 1-5 minute interval here:
+    // const marketInterval = setInterval(async () => {
+    //   const newEvents = await ingestByPollInterval(5);
+    //   if (newEvents.length > 0) mergeEvents(newEvents);
+    // }, 1 * 60 * 1000);
+
+    return () => {
+      clearInterval(newsInterval);
+      clearInterval(officialInterval);
+      // clearInterval(marketInterval);
+    };
+  }, [loadEvents, mergeEvents]);
 
   // ---- Filtering ----------------------------------------------------------
 

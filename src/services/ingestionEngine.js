@@ -325,6 +325,54 @@ export async function ingestAll() {
   return deduplicated;
 }
 
+// ---- Tiered Ingestion by Poll Interval ------------------------------------
+
+/**
+ * Fetch only feeds whose pollMinutes <= maxPollMinutes.
+ * Used for tiered polling — e.g., news feeds (10min) vs official feeds (15min).
+ * Returns deduplicated events from the matching feeds only.
+ */
+export async function ingestByPollInterval(maxPollMinutes) {
+  const eligibleFeeds = getActiveFeedsByPollInterval(maxPollMinutes);
+  if (eligibleFeeds.length === 0) return [];
+
+  const eligibleNames = new Set(eligibleFeeds.map(f => f.name));
+  console.info(`[ingestion] Tier refresh: feeds with pollMinutes <= ${maxPollMinutes} (${eligibleFeeds.length} feeds)`);
+
+  let rawEvents = [];
+
+  // 1. Try worker first — worker fetches all feeds, so filter by source name
+  const workerData = await fetchFromWorker();
+  if (workerData) {
+    const allEnriched = enrichWorkerItems(workerData);
+    rawEvents = allEnriched.filter(event =>
+      event.sources?.some(s => eligibleNames.has(s.name))
+    );
+    console.info(`[ingestion] Worker: filtered ${rawEvents.length}/${allEnriched.length} items for tier <= ${maxPollMinutes}min`);
+  } else {
+    // 2. Fallback: only fetch eligible feeds via CORS proxies
+    const results = await Promise.allSettled(
+      eligibleFeeds.map(feed => fetchAndEnrichFeed(feed))
+    );
+    rawEvents = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  }
+
+  if (rawEvents.length === 0) return [];
+
+  // 3. Cluster and deduplicate the tier batch
+  const clustered = clusterEvents(rawEvents);
+  const deduplicated = deduplicateClusters(clustered);
+
+  // 4. Archive (async, don't block UI)
+  storeEvents(deduplicated).catch(err =>
+    console.warn('[ingestion] Archive write failed:', err.message)
+  );
+
+  console.info(`[ingestion] Tier <= ${maxPollMinutes}min: ${rawEvents.length} raw -> ${deduplicated.length} events`);
+
+  return deduplicated;
+}
+
 // ---- Exports for backward compatibility -----------------------------------
 
 export const CATEGORIES_COMPAT = [
