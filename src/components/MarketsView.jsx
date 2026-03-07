@@ -3,6 +3,7 @@ import MacroCard from './charts/MacroCard';
 import MiniChart from './charts/MiniChart';
 import { fetchMacroSnapshot } from '../services/dataApis';
 import { fetchWorldBank } from '../services/dataApis';
+import { fetchLiveMarketBatch, fetchTradeSnapshot } from '../services/tradeApis';
 
 // ---- G20 country list for macro table --------------------------------------
 
@@ -208,6 +209,10 @@ export default function MarketsView() {
   const [loading, setLoading] = useState(true);
   const [g20Data, setG20Data] = useState([]);
   const [g20Loading, setG20Loading] = useState(true);
+  const [liveMarkets, setLiveMarkets] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(true);
+  const [tradeData, setTradeData] = useState(null);
+  const [tradeLoading, setTradeLoading] = useState(true);
 
   // Fetch macro snapshot
   useEffect(() => {
@@ -273,6 +278,44 @@ export default function MarketsView() {
     }
 
     loadG20();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Fetch live Alpha Vantage market data
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLive() {
+      setLiveLoading(true);
+      try {
+        const data = await fetchLiveMarketBatch();
+        if (!cancelled && data) setLiveMarkets(data);
+      } catch (err) {
+        console.warn('[MarketsView] Live markets fetch failed:', err.message);
+      } finally {
+        if (!cancelled) setLiveLoading(false);
+      }
+    }
+    loadLive();
+    // Refresh every 30 min (Alpha Vantage rate limits)
+    const interval = setInterval(loadLive, 30 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Fetch trade data (WITS, UK Tariff, Comtrade)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTrade() {
+      setTradeLoading(true);
+      try {
+        const data = await fetchTradeSnapshot();
+        if (!cancelled) setTradeData(data);
+      } catch (err) {
+        console.warn('[MarketsView] Trade data fetch failed:', err.message);
+      } finally {
+        if (!cancelled) setTradeLoading(false);
+      }
+    }
+    loadTrade();
     return () => { cancelled = true; };
   }, []);
 
@@ -404,10 +447,118 @@ export default function MarketsView() {
         </div>
       )}
 
-      {/* Row 3: G20 Macro Table */}
+      {/* Row 3: Live Market Prices (Alpha Vantage) */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Live Rates</h3>
+        {liveLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-4">
+                <div className="skeleton h-4 w-20 mb-2" />
+                <div className="skeleton h-6 w-16" />
+              </div>
+            ))}
+          </div>
+        ) : liveMarkets ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {liveMarkets.forex.map(fx => (
+              <div key={fx.pair} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-4">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{fx.pair}</div>
+                <div className="text-lg font-bold text-gray-100 tabular-nums">{fx.rate.toFixed(4)}</div>
+                <div className="text-[10px] text-gray-600 mt-1">Bid: {fx.bidPrice.toFixed(4)} / Ask: {fx.askPrice.toFixed(4)}</div>
+              </div>
+            ))}
+            {liveMarkets.equities.map(eq => (
+              <div key={eq.symbol} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-4">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{eq.symbol}</div>
+                <div className="text-lg font-bold text-gray-100 tabular-nums">${eq.price.toFixed(2)}</div>
+                <div className={`text-xs tabular-nums mt-1 ${eq.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {eq.change >= 0 ? '+' : ''}{eq.change.toFixed(2)} ({eq.changePercent})
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-[#12121A] border border-gray-800/60 rounded-xl p-4">
+            <p className="text-xs text-gray-600">Set <code className="bg-white/5 px-1 rounded">VITE_ALPHA_VANTAGE_KEY</code> in .env for live forex and equity prices.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Row 4: G20 Macro Table */}
       <MacroTable data={g20Data} loading={g20Loading} />
 
-      {/* Row 4: Economic Calendar */}
+      {/* Row 5: Trade Data (WITS, UK Tariff, Comtrade) */}
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Trade Intelligence</h3>
+        {tradeLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5">
+              <div className="skeleton h-4 w-32 mb-3" />
+              <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-6 w-full" />)}</div>
+            </div>
+            <div className="bg-[#12121A] border border-gray-800/60 rounded-xl p-5">
+              <div className="skeleton h-4 w-32 mb-3" />
+              <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-6 w-full" />)}</div>
+            </div>
+          </div>
+        ) : tradeData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* UN Comtrade Releases */}
+            <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Latest Trade Data Releases</h4>
+                <span className="text-[10px] text-gray-600">UN Comtrade</span>
+              </div>
+              <div className="divide-y divide-gray-800/40">
+                {tradeData.comtradeReleases.releases.length > 0 ? (
+                  tradeData.comtradeReleases.releases.slice(0, 10).map((r, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-300 truncate">{r.country}</p>
+                        <p className="text-[10px] text-gray-600">{r.flowDesc} &middot; {r.year}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {r.releaseDate && <p className="text-[10px] text-gray-500">{new Date(r.releaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>}
+                        {r.totalRecords && <p className="text-[10px] text-gray-600">{r.totalRecords.toLocaleString()} records</p>}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="px-4 py-3 text-xs text-gray-600">No release data available.</p>
+                )}
+              </div>
+            </div>
+
+            {/* UK Tariff Samples */}
+            <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">UK Tariff Lookup</h4>
+                <span className="text-[10px] text-gray-600">UK Trade Tariff Service</span>
+              </div>
+              <div className="divide-y divide-gray-800/40">
+                {['steel', 'semiconductors'].map(key => {
+                  const sample = tradeData.ukTariffSamples[key];
+                  if (!sample?.results?.length) return null;
+                  return (
+                    <div key={key} className="px-4 py-3">
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">"{key}"</p>
+                      {sample.results.slice(0, 5).map((item, i) => (
+                        <div key={i} className="flex items-baseline justify-between py-1">
+                          <p className="text-xs text-gray-300 truncate flex-1 mr-2" dangerouslySetInnerHTML={{ __html: item.description }} />
+                          <span className="text-[10px] text-gray-600 tabular-nums shrink-0">{item.goodsNomenclatureItemId}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Row 6: Economic Calendar */}
       <EconomicCalendar calendar={snapshot?.calendar} />
 
       {/* Market News */}
