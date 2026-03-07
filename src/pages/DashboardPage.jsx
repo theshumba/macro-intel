@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import EventCard from '../components/EventCard.jsx';
 import { SEVERITY } from '../services/eventModel.js';
 
@@ -100,7 +101,8 @@ function DashboardPage({ events, onSelectEvent, selectedEventId }) {
           <SectionHeader title="By Region" />
           <div className="space-y-2">
             {regionBreakdown.map(([region, data]) => (
-              <div key={region} className="flex items-center justify-between bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40">
+              <Link key={region} to={`/region/${encodeURIComponent(region)}`}
+                className="flex items-center justify-between bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40 hover:border-emerald-500/30 transition-colors">
                 <span className="text-sm text-gray-300">{region}</span>
                 <div className="flex items-center gap-3">
                   {data.major > 0 && (
@@ -108,7 +110,7 @@ function DashboardPage({ events, onSelectEvent, selectedEventId }) {
                   )}
                   <span className="text-sm text-gray-400 tabular-nums font-medium">{data.count}</span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
@@ -135,10 +137,11 @@ function DashboardPage({ events, onSelectEvent, selectedEventId }) {
         <SectionHeader title="By Category" />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
           {categoryBreakdown.map(([cat, count]) => (
-            <div key={cat} className="bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40 flex items-center justify-between">
+            <Link key={cat} to={`/theme/${encodeURIComponent(cat)}`}
+              className="bg-[#12121A] rounded-lg px-3 py-2 border border-gray-800/40 hover:border-emerald-500/30 transition-colors flex items-center justify-between">
               <span className="text-xs text-gray-400 truncate">{cat}</span>
               <span className="text-sm text-gray-300 font-medium tabular-nums ml-2">{count}</span>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

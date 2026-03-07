@@ -16,6 +16,9 @@ import EventsPage from './pages/EventsPage';
 import MapPage from './pages/MapPage';
 import MarketsPage from './pages/MarketsPage';
 import ArchivePage from './pages/ArchivePage';
+import RegionPage from './pages/RegionPage';
+import CountryPage from './pages/CountryPage';
+import ThemePage from './pages/ThemePage';
 import { ingestAll, CATEGORIES_COMPAT, REGIONS_COMPAT } from './services/ingestionEngine';
 
 const DEFAULT_FILTERS = {
@@ -214,6 +217,36 @@ function App() {
               path="/archive"
               element={
                 <ArchivePage
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+            <Route
+              path="/region/:region"
+              element={
+                <RegionPage
+                  events={filteredEvents}
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+            <Route
+              path="/country/:country"
+              element={
+                <CountryPage
+                  events={filteredEvents}
+                  onSelectEvent={handleSelectEvent}
+                  selectedEventId={selectedEvent?.eventId}
+                />
+              }
+            />
+            <Route
+              path="/theme/:category"
+              element={
+                <ThemePage
+                  events={filteredEvents}
                   onSelectEvent={handleSelectEvent}
                   selectedEventId={selectedEvent?.eventId}
                 />
