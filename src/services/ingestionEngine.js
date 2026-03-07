@@ -9,7 +9,7 @@ import { ACTIVE_FEEDS, getActiveFeedsByPollInterval } from './sourceRegistry.js'
 import { geolocateEvent, inferRegionFromSource } from './geolocation.js';
 import { classifyCategory, extractTags, classifySeverity, classifyConfidence } from './classifier.js';
 import { clusterEvents, deduplicateClusters } from './clustering.js';
-import { storeEvents } from './archiveDb.js';
+import { storeEvents, getEvents } from './archiveDb.js';
 import { stripHtml, getTagText, parseXml } from './xmlParser.js';
 import { attachContext } from './contextEngine.js';
 import { linkMarkets } from './marketLinker.js';
@@ -302,6 +302,18 @@ function generateDemoData() {
  * Returns the deduplicated event list for display.
  */
 export async function ingestAll() {
+  // 0. Load persisted events from IndexedDB archive first
+  let archivedEvents = [];
+  try {
+    const archiveResult = await getEvents({ limit: 5000 });
+    archivedEvents = archiveResult.events || [];
+    if (archivedEvents.length > 0) {
+      console.info(`[ingestion] Restored ${archivedEvents.length} events from archive`);
+    }
+  } catch (err) {
+    console.warn('[ingestion] Archive read failed:', err.message);
+  }
+
   let rawEvents = [];
 
   // 1. Try worker first
@@ -317,9 +329,9 @@ export async function ingestAll() {
     rawEvents = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   }
 
-  // 3. If nothing came through, use demo data
-  if (rawEvents.length === 0) {
-    console.warn('[ingestion] All feeds failed. Using demo data.');
+  // 3. If nothing came through and no archive, use demo data
+  if (rawEvents.length === 0 && archivedEvents.length === 0) {
+    console.warn('[ingestion] All feeds failed and archive empty. Using demo data.');
     rawEvents = generateDemoData();
   }
 
@@ -334,9 +346,16 @@ export async function ingestAll() {
     console.warn('[ingestion] Archive write failed:', err.message)
   );
 
-  console.info(`[ingestion] ${rawEvents.length} raw -> ${deduplicated.length} events after clustering`);
+  // 7. Merge fresh events with archived events (fresh wins on conflict)
+  const eventMap = new Map(archivedEvents.map(e => [e.eventId, e]));
+  for (const event of deduplicated) {
+    eventMap.set(event.eventId, event);
+  }
+  const merged = Array.from(eventMap.values());
 
-  return deduplicated;
+  console.info(`[ingestion] ${archivedEvents.length} archived + ${deduplicated.length} fresh -> ${merged.length} total events`);
+
+  return merged;
 }
 
 // ---- Tiered Ingestion by Poll Interval ------------------------------------
