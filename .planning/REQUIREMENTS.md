@@ -7,43 +7,43 @@
 
 ### Context Engine
 
-- [ ] **CTX-01**: Events display relevant country-level context data (water stress, energy dependency, trade openness) when available
-- [ ] **CTX-02**: Context data is auto-attached during ingestion based on event's primary country
-- [ ] **CTX-03**: Context data source is clearly attributed (World Bank, WRI Aqueduct, etc.)
-- [ ] **CTX-04**: EventDetailPanel shows structured context section for events with context data
+- [x] **CTX-01**: Events display relevant country-level context data (water stress, energy dependency, trade openness) when available
+- [x] **CTX-02**: Context data is auto-attached during ingestion based on event's primary country
+- [x] **CTX-03**: Context data source is clearly attributed (World Bank, WRI Aqueduct, etc.)
+- [x] **CTX-04**: EventDetailPanel shows structured context section for events with context data
 
 ### Market Linking
 
-- [ ] **MKT-01**: Events are linked to relevant market instruments (currencies, commodities, indices, bonds) based on category and country
-- [ ] **MKT-02**: Linked instruments display on EventDetailPanel with instrument name and type
-- [ ] **MKT-03**: Market linking rules are configurable per category (e.g., "Central Banks" links to currency + bond instruments)
+- [x] **MKT-01**: Events are linked to relevant market instruments (currencies, commodities, indices, bonds) based on category and country
+- [x] **MKT-02**: Linked instruments display on EventDetailPanel with instrument name and type
+- [x] **MKT-03**: Market linking rules are configurable per category (e.g., "Central Banks" links to currency + bond instruments)
 
 ### Data Explorer
 
-- [ ] **EXP-01**: User can browse country-level economic indicators on a dedicated Data Explorer page
-- [ ] **EXP-02**: User can search and filter indicators by country and category
-- [ ] **EXP-03**: Data Explorer shows indicator values with source attribution
-- [ ] **EXP-04**: Data Explorer is accessible from main navigation
+- [x] **EXP-01**: User can browse country-level economic indicators on a dedicated Data Explorer page
+- [x] **EXP-02**: User can search and filter indicators by country and category
+- [x] **EXP-03**: Data Explorer shows indicator values with source attribution
+- [x] **EXP-04**: Data Explorer is accessible from main navigation
 
 ### Event Log
 
-- [ ] **LOG-01**: User can view event lifecycle history (status changes, source additions) in EventDetailPanel
-- [ ] **LOG-02**: Event log entries show timestamp and change description
-- [ ] **LOG-03**: Archive stores event log entries via existing archiveDb infrastructure
+- [x] **LOG-01**: User can view event lifecycle history (status changes, source additions) in EventDetailPanel
+- [x] **LOG-02**: Event log entries show timestamp and change description
+- [x] **LOG-03**: Archive stores event log entries via existing archiveDb infrastructure
 
 ### Dashboard Enhancements
 
-- [ ] **DASH-01**: Dashboard shows a market snapshot widget with key market indicators
-- [ ] **DASH-02**: Dashboard shows a small interactive map preview widget with recent event locations
-- [ ] **DASH-03**: Market snapshot and map preview link to their full pages
+- [x] **DASH-01**: Dashboard shows a market snapshot widget with key market indicators
+- [x] **DASH-02**: Dashboard shows a small interactive map preview widget with recent event locations
+- [x] **DASH-03**: Market snapshot and map preview link to their full pages
 
 ### Engineering Cleanup
 
-- [ ] **ENG-01**: Dead code removed — feedService.js, briefGenerator.js, GlobeView.jsx, DashboardView.jsx, ViewSwitcher.jsx, NewsList.jsx, NewsCard.jsx
-- [ ] **ENG-02**: Unused dependencies removed from package.json (react-globe.gl, three)
-- [ ] **ENG-03**: IMF/World Bank region misclassification fixed in sourceRegistry.js
-- [ ] **ENG-04**: Tiered polling intervals implemented (10min news, 15min official, 1-5min market)
-- [ ] **ENG-05**: XML parsing extracted to shared module to eliminate duplication
+- [x] **ENG-01**: Dead code removed — feedService.js, briefGenerator.js, GlobeView.jsx, DashboardView.jsx, ViewSwitcher.jsx, NewsList.jsx, NewsCard.jsx
+- [x] **ENG-02**: Unused dependencies removed from package.json (react-globe.gl, three)
+- [x] **ENG-03**: IMF/World Bank region misclassification fixed in sourceRegistry.js
+- [x] **ENG-04**: Tiered polling intervals implemented (10min news, 15min official, 1-5min market)
+- [x] **ENG-05**: XML parsing extracted to shared module to eliminate duplication
 
 ## v2 Requirements
 
@@ -74,34 +74,34 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENG-01 | Phase 1 | Pending |
-| ENG-02 | Phase 1 | Pending |
-| ENG-03 | Phase 1 | Pending |
-| ENG-04 | Phase 1 | Pending |
-| ENG-05 | Phase 1 | Pending |
-| CTX-01 | Phase 2 | Pending |
-| CTX-02 | Phase 2 | Pending |
-| CTX-03 | Phase 2 | Pending |
-| CTX-04 | Phase 2 | Pending |
-| MKT-01 | Phase 3 | Pending |
-| MKT-02 | Phase 3 | Pending |
-| MKT-03 | Phase 3 | Pending |
-| LOG-01 | Phase 4 | Pending |
-| LOG-02 | Phase 4 | Pending |
-| LOG-03 | Phase 4 | Pending |
-| DASH-01 | Phase 5 | Pending |
-| DASH-02 | Phase 5 | Pending |
-| DASH-03 | Phase 5 | Pending |
-| EXP-01 | Phase 6 | Pending |
-| EXP-02 | Phase 6 | Pending |
-| EXP-03 | Phase 6 | Pending |
-| EXP-04 | Phase 6 | Pending |
+| ENG-01 | Phase 1 | Complete |
+| ENG-02 | Phase 1 | Complete |
+| ENG-03 | Phase 1 | Complete |
+| ENG-04 | Phase 1 | Complete |
+| ENG-05 | Phase 1 | Complete |
+| CTX-01 | Phase 2 | Complete |
+| CTX-02 | Phase 2 | Complete |
+| CTX-03 | Phase 2 | Complete |
+| CTX-04 | Phase 2 | Complete |
+| MKT-01 | Phase 3 | Complete |
+| MKT-02 | Phase 3 | Complete |
+| MKT-03 | Phase 3 | Complete |
+| LOG-01 | Phase 4 | Complete |
+| LOG-02 | Phase 4 | Complete |
+| LOG-03 | Phase 4 | Complete |
+| DASH-01 | Phase 5 | Complete |
+| DASH-02 | Phase 5 | Complete |
+| DASH-03 | Phase 5 | Complete |
+| EXP-01 | Phase 6 | Complete |
+| EXP-02 | Phase 6 | Complete |
+| EXP-03 | Phase 6 | Complete |
+| EXP-04 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 22 total
-- Mapped to phases: 22
-- Unmapped: 0
+- Complete: 22
+- Remaining: 0
 
 ---
 *Requirements defined: 2026-03-07*
-*Last updated: 2026-03-07 after roadmap phase mapping*
+*Last updated: 2026-03-07 — all v1 requirements complete*

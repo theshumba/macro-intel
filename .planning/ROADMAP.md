@@ -12,12 +12,12 @@ Macro Intel v5.1 transforms the existing intelligence terminal from a read-only 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Engineering Cleanup** - Remove dead code, fix bugs, improve polling, extract shared XML parsing
-- [ ] **Phase 2: Context Engine** - Auto-attach country-level context data to events during ingestion
-- [ ] **Phase 3: Market Linking** - Connect events to relevant market instruments based on category and country
-- [ ] **Phase 4: Event Lifecycle** - Track and display event status changes and source additions over time
-- [ ] **Phase 5: Dashboard Enhancements** - Add market snapshot and map preview widgets to the homepage
-- [ ] **Phase 6: Data Explorer** - Dedicated page for browsing country-level economic indicators
+- [x] **Phase 1: Engineering Cleanup** - Remove dead code, fix bugs, improve polling, extract shared XML parsing
+- [x] **Phase 2: Context Engine** - Auto-attach country-level context data to events during ingestion
+- [x] **Phase 3: Market Linking** - Connect events to relevant market instruments based on category and country
+- [x] **Phase 4: Event Lifecycle** - Track and display event status changes and source additions over time
+- [x] **Phase 5: Dashboard Enhancements** - Add market snapshot and map preview widgets to the homepage
+- [x] **Phase 6: Data Explorer** - Dedicated page for browsing country-level economic indicators
 
 ## Phase Details
 
@@ -115,12 +115,13 @@ Note: Phase 4 depends on Phase 1 (not Phase 3), so it could theoretically run in
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Engineering Cleanup | 0/2 | Not started | - |
-| 2. Context Engine | 0/2 | Not started | - |
-| 3. Market Linking | 0/1 | Not started | - |
-| 4. Event Lifecycle | 0/1 | Not started | - |
-| 5. Dashboard Enhancements | 0/1 | Not started | - |
-| 6. Data Explorer | 0/1 | Not started | - |
+| 1. Engineering Cleanup | 2/2 | Complete | 2026-03-07 |
+| 2. Context Engine | 1/1 | Complete | 2026-03-07 |
+| 3. Market Linking | 1/1 | Complete | 2026-03-07 |
+| 4. Event Lifecycle | 1/1 | Complete | 2026-03-07 |
+| 5. Dashboard Enhancements | 1/1 | Complete | 2026-03-07 |
+| 6. Data Explorer | 1/1 | Complete | 2026-03-07 |
 
 ---
 *Roadmap created: 2026-03-07*
+*Milestone complete: 2026-03-07*
