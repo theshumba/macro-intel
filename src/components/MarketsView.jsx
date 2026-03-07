@@ -4,6 +4,7 @@ import MiniChart from './charts/MiniChart';
 import { fetchMacroSnapshot } from '../services/dataApis';
 import { fetchWorldBank } from '../services/dataApis';
 import { fetchLiveMarketBatch, fetchTradeSnapshot } from '../services/tradeApis';
+import { fetchYahooMarketBatch, fetchCryptoMarkets, fetchFearGreedIndex, fetchBisPolicyRates } from '../services/worldMonitorApis';
 
 // ---- G20 country list for macro table --------------------------------------
 
@@ -213,6 +214,11 @@ export default function MarketsView() {
   const [liveLoading, setLiveLoading] = useState(true);
   const [tradeData, setTradeData] = useState(null);
   const [tradeLoading, setTradeLoading] = useState(true);
+  const [yahooData, setYahooData] = useState(null);
+  const [yahooLoading, setYahooLoading] = useState(true);
+  const [cryptoData, setCryptoData] = useState(null);
+  const [fearGreed, setFearGreed] = useState(null);
+  const [bisRates, setBisRates] = useState(null);
 
   // Fetch macro snapshot
   useEffect(() => {
@@ -299,6 +305,28 @@ export default function MarketsView() {
     // Refresh every 30 min (Alpha Vantage rate limits)
     const interval = setInterval(loadLive, 30 * 60 * 1000);
     return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Fetch Yahoo Finance, crypto, BIS in parallel
+  useEffect(() => {
+    let cancelled = false;
+    async function loadExtras() {
+      const [yahoo, crypto, fg, bis] = await Promise.all([
+        fetchYahooMarketBatch().catch(() => null),
+        fetchCryptoMarkets().catch(() => null),
+        fetchFearGreedIndex().catch(() => null),
+        fetchBisPolicyRates().catch(() => null),
+      ]);
+      if (!cancelled) {
+        setYahooData(yahoo);
+        setYahooLoading(false);
+        setCryptoData(crypto);
+        setFearGreed(fg);
+        setBisRates(bis);
+      }
+    }
+    loadExtras();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch trade data (WITS, UK Tariff, Comtrade)
@@ -558,7 +586,113 @@ export default function MarketsView() {
         ) : null}
       </div>
 
-      {/* Row 6: Economic Calendar */}
+      {/* Row 6: Yahoo Finance Global Indices & Commodities */}
+      {yahooData && (
+        <div className="space-y-4">
+          {yahooData.indices.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Global Indices</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {yahooData.indices.map(q => (
+                  <div key={q.symbol} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-3">
+                    <div className="text-[10px] text-gray-500 truncate mb-1">{q.name}</div>
+                    <div className="text-sm font-bold text-gray-100 tabular-nums">{formatPrice(q.price)}</div>
+                    <div className={`text-xs tabular-nums mt-0.5 ${q.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {q.change >= 0 ? '+' : ''}{q.changePercent}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {yahooData.commodities.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Commodities</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {yahooData.commodities.map(q => (
+                  <div key={q.symbol} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-3">
+                    <div className="text-[10px] text-gray-500 truncate mb-1">{q.name}</div>
+                    <div className="text-sm font-bold text-gray-100 tabular-nums">{q.currency === 'USD' ? '$' : ''}{formatPrice(q.price)}</div>
+                    <div className={`text-xs tabular-nums mt-0.5 ${q.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {q.change >= 0 ? '+' : ''}{q.changePercent}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {yahooData.forex.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Forex (Yahoo)</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {yahooData.forex.map(q => (
+                  <div key={q.symbol} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-3">
+                    <div className="text-[10px] text-gray-500 mb-1">{q.name}</div>
+                    <div className="text-sm font-bold text-gray-100 tabular-nums">{q.price?.toFixed(4)}</div>
+                    <div className={`text-xs tabular-nums mt-0.5 ${q.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {q.change >= 0 ? '+' : ''}{q.changePercent}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Row 7: Crypto Prices */}
+      {cryptoData?.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Cryptocurrency</h3>
+            {fearGreed?.[0] && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500">Fear & Greed:</span>
+                <span className={`text-xs font-bold tabular-nums ${
+                  fearGreed[0].value >= 75 ? 'text-emerald-400' :
+                  fearGreed[0].value >= 50 ? 'text-gray-200' :
+                  fearGreed[0].value >= 25 ? 'text-amber-400' : 'text-red-400'
+                }`}>{fearGreed[0].value} — {fearGreed[0].label}</span>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {cryptoData.map(c => (
+              <div key={c.id} className="bg-[#12121A] border border-gray-800/60 rounded-xl p-3">
+                <div className="text-[10px] text-gray-500 mb-1">{c.symbol}</div>
+                <div className="text-sm font-bold text-gray-100 tabular-nums">
+                  ${c.price >= 1 ? c.price.toLocaleString(undefined, {maximumFractionDigits: 0}) : c.price.toFixed(4)}
+                </div>
+                <div className={`text-xs tabular-nums mt-0.5 ${c.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {c.change24h >= 0 ? '+' : ''}{c.change24h?.toFixed(1)}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 8: BIS Central Bank Policy Rates */}
+      {bisRates?.length > 0 && (
+        <div className="bg-[#12121A] border border-gray-800/60 rounded-xl overflow-hidden">
+          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Central Bank Policy Rates</h3>
+            <span className="text-[10px] text-gray-600">BIS</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 p-4">
+            {bisRates.slice(0, 18).map(r => (
+              <div key={r.country} className="bg-[#0A0A0F] rounded-lg px-3 py-2 border border-gray-800/40">
+                <div className="text-[10px] text-gray-500 truncate">{r.country}</div>
+                <div className="text-sm font-bold text-gray-100 tabular-nums">{r.rate.toFixed(2)}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 9: Economic Calendar */}
       <EconomicCalendar calendar={snapshot?.calendar} />
 
       {/* Market News */}

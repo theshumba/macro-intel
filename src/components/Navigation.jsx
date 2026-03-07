@@ -47,6 +47,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to: '/monitor',
+    label: 'Monitor',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 019 9" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" />
+        <path d="M12 12l4-4" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     to: '/data',
     label: 'Data',
     icon: (
