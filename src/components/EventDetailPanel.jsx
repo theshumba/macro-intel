@@ -207,6 +207,33 @@ function EventDetailPanel({ event, onClose }) {
             </Section>
           )}
 
+          {/* Alternate Coverage */}
+          {event.alternateHeadlines?.length > 0 && (
+            <Section title="Also Reported As">
+              <div className="space-y-2">
+                {event.alternateHeadlines.map((alt, i) => (
+                  <div key={i} className="bg-[#12121A] rounded-lg px-3 py-2.5 border border-gray-800/40">
+                    <div className="text-sm text-gray-300 leading-snug mb-1">{alt.headline}</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 font-medium">{alt.source}</span>
+                      {alt.url && (
+                        <a
+                          href={alt.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-400 hover:text-emerald-300 text-[10px]"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          Read
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           {/* Sources */}
           <Section title="Sources">
             <div className="space-y-2">

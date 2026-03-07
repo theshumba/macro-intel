@@ -5,6 +5,58 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
+// ---- Content Fingerprinting ------------------------------------------------
+
+const STOP_WORDS = new Set([
+  'the','a','an','is','are','was','were','be','been','being','have','has','had',
+  'do','does','did','will','would','shall','should','may','might','can','could',
+  'must','to','of','in','for','on','with','at','by','from','as','into','through',
+  'during','before','after','above','below','between','out','off','over','under',
+  'again','further','then','once','here','there','when','where','why','how','all',
+  'both','each','few','more','most','other','some','such','nor','not','only',
+  'own','same','so','than','too','very','just','and','but','or','if','while',
+  'about','against','up','down','that','this','these','those','its','also','new',
+  'says','said','could','amid','via','per','yet',
+]);
+
+function djb2Hash(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Create a stable content fingerprint from a headline.
+ * Same story with minor wording changes produces the same fingerprint.
+ */
+export function createContentFingerprint(headline) {
+  if (!headline) return null;
+  const words = headline.toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w))
+    .sort();
+  if (words.length === 0) return null;
+  return `fp-${djb2Hash(words.join(' '))}`;
+}
+
+/**
+ * Create a fingerprint from a source URL (article link).
+ * Normalizes protocol, trailing slashes, and query params.
+ */
+export function createUrlFingerprint(url) {
+  if (!url) return null;
+  const normalized = url
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '')
+    .replace(/[?#].*$/, '')
+    .toLowerCase();
+  return `url-${djb2Hash(normalized)}`;
+}
+
 // ---- Region Framework (12 regions) ----------------------------------------
 
 export const REGIONS = [
@@ -125,14 +177,18 @@ export function createEvent({
   clusterId = null,
 } = {}) {
   const now = new Date().toISOString();
+  const primaryUrl = sources?.[0]?.url || null;
 
   return {
     eventId: uuidv4(),
     clusterId: clusterId || uuidv4(),
+    contentFingerprint: createContentFingerprint(headline),
+    urlFingerprint: createUrlFingerprint(primaryUrl),
 
     // Content
     headline,
     executiveSummary,
+    alternateHeadlines: [],
     whatHappened,
     whyThisMatters,
 

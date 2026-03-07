@@ -5,6 +5,7 @@
 // Major: + why this matters
 // ---------------------------------------------------------------------------
 
+import { useState } from 'react';
 import { SEVERITY } from '../services/eventModel.js';
 
 function timeAgo(dateString) {
@@ -72,6 +73,7 @@ function ConfidenceDot({ confidence }) {
 }
 
 function EventCard({ event, onSelect, isSelected, index }) {
+  const [showCoverage, setShowCoverage] = useState(false);
   const severity = event.severity || SEVERITY.ROUTINE;
   const barColor = severity >= SEVERITY.MAJOR ? 'bg-red-500'
     : severity >= SEVERITY.MATERIAL ? 'bg-amber-500'
@@ -79,6 +81,13 @@ function EventCard({ event, onSelect, isSelected, index }) {
 
   const sourceNames = event.sources?.map(s => s.name) || [];
   const uniqueSources = [...new Set(sourceNames)];
+  const altHeadlines = event.alternateHeadlines || [];
+  const hasAlternateCoverage = altHeadlines.length > 0 || uniqueSources.length > 1;
+
+  const handleToggleCoverage = (e) => {
+    e.stopPropagation();
+    setShowCoverage(prev => !prev);
+  };
 
   return (
     <article
@@ -129,6 +138,37 @@ function EventCard({ event, onSelect, isSelected, index }) {
                 {tag}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Alternate coverage toggle */}
+        {hasAlternateCoverage && (
+          <div className="mb-2">
+            <button
+              onClick={handleToggleCoverage}
+              className="text-[11px] text-emerald-400/70 hover:text-emerald-400 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <svg className={`w-3 h-3 transition-transform ${showCoverage ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+              {altHeadlines.length > 0
+                ? `${altHeadlines.length} other source${altHeadlines.length > 1 ? 's' : ''} covering this`
+                : `${uniqueSources.length} sources`}
+            </button>
+            {showCoverage && (
+              <div className="mt-1.5 space-y-1 pl-4 border-l border-gray-800">
+                {altHeadlines.map((alt, i) => (
+                  <div key={i} className="text-xs">
+                    <span className="text-gray-500 font-medium">{alt.source}</span>
+                    <span className="text-gray-600 mx-1">—</span>
+                    <span className="text-gray-400">{alt.headline}</span>
+                  </div>
+                ))}
+                {altHeadlines.length === 0 && uniqueSources.map(name => (
+                  <div key={name} className="text-xs text-gray-500 font-medium">{name}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

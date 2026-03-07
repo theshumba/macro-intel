@@ -56,7 +56,7 @@ function categoryOverlap(a, b) {
  * Compute overall similarity score between two events.
  * Returns a score 0-1 where higher means more likely to be same event.
  */
-function eventSimilarity(a, b) {
+export function eventSimilarity(a, b) {
   let score = 0;
 
   // Title similarity (heaviest weight)
@@ -220,10 +220,18 @@ export function deduplicateClusters(events) {
     }
     canonical.subcategoryTags = [...allTags];
 
-    // Store related event IDs
+    // Store related event IDs and alternate headlines
     canonical.relatedEventIds = members
       .filter(m => m.eventId !== canonical.eventId)
       .map(m => m.eventId);
+
+    canonical.alternateHeadlines = members
+      .filter(m => m.eventId !== canonical.eventId && m.headline !== canonical.headline)
+      .map(m => ({
+        headline: m.headline,
+        source: m.sources?.[0]?.name || 'Unknown',
+        url: m.sources?.[0]?.url || null,
+      }));
 
     // Upgrade severity if multiple sources confirm
     if (canonical.severity < 3 && canonical.sourceCount >= 4) {

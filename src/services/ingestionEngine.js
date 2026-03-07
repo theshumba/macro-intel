@@ -4,11 +4,11 @@
 // deduplication, and archive storage.
 // ---------------------------------------------------------------------------
 
-import { createEvent, createSource, SOURCE_TIERS } from './eventModel.js';
+import { createEvent, createSource, SOURCE_TIERS, createUrlFingerprint } from './eventModel.js';
 import { ACTIVE_FEEDS, getActiveFeedsByPollInterval } from './sourceRegistry.js';
 import { geolocateEvent, inferRegionFromSource } from './geolocation.js';
 import { classifyCategory, extractTags, classifySeverity, classifyConfidence } from './classifier.js';
-import { clusterEvents, deduplicateClusters } from './clustering.js';
+import { clusterEvents, deduplicateClusters, eventSimilarity } from './clustering.js';
 import { storeEvents, getEvents } from './archiveDb.js';
 import { stripHtml, getTagText, parseXml } from './xmlParser.js';
 import { attachContext } from './contextEngine.js';
@@ -295,6 +295,140 @@ function generateDemoData() {
   });
 }
 
+// ---- Deduplication Helpers -------------------------------------------------
+
+/**
+ * Pre-deduplicate raw events by source URL.
+ * If multiple events share the same article URL, keep only the first.
+ */
+function deduplicateByUrl(events) {
+  const seen = new Set();
+  const result = [];
+  for (const event of events) {
+    const url = event.sources?.[0]?.url;
+    const fp = url ? createUrlFingerprint(url) : null;
+    if (fp && seen.has(fp)) continue;
+    if (fp) seen.add(fp);
+    result.push(event);
+  }
+  return result;
+}
+
+/**
+ * Merge a fresh event's sources/metadata into an existing event.
+ */
+function mergeEventInto(existing, fresh) {
+  // Merge sources
+  const seenUrls = new Set((existing.sources || []).map(s => s.url));
+  for (const source of (fresh.sources || [])) {
+    if (source.url && !seenUrls.has(source.url)) {
+      seenUrls.add(source.url);
+      existing.sources.push(source);
+    }
+  }
+  existing.sourceCount = existing.sources.length;
+
+  // Add alternate headline if different
+  if (fresh.headline && fresh.headline !== existing.headline) {
+    if (!existing.alternateHeadlines) existing.alternateHeadlines = [];
+    const alreadyStored = existing.alternateHeadlines.some(a => a.headline === fresh.headline);
+    if (!alreadyStored) {
+      existing.alternateHeadlines.push({
+        headline: fresh.headline,
+        source: fresh.sources?.[0]?.name || 'Unknown',
+        url: fresh.sources?.[0]?.url || null,
+      });
+    }
+  }
+
+  // Update timestamp if fresh is more recent
+  if (fresh.lastUpdatedAt > existing.lastUpdatedAt) {
+    existing.lastUpdatedAt = fresh.lastUpdatedAt;
+  }
+
+  // Merge tags
+  if (fresh.subcategoryTags?.length) {
+    const tagSet = new Set(existing.subcategoryTags || []);
+    for (const t of fresh.subcategoryTags) tagSet.add(t);
+    existing.subcategoryTags = [...tagSet];
+  }
+
+  // Upgrade confidence if more sources confirm
+  if (existing.sourceCount >= 3) existing.confidence = 'confirmed';
+}
+
+/**
+ * Smart merge: fresh events into archived events using fingerprint,
+ * URL, and similarity matching to prevent duplicates.
+ */
+function smartMerge(archivedEvents, freshEvents) {
+  // Build indexes from archived events
+  const byId = new Map();
+  const byFingerprint = new Map();
+  const byUrl = new Map();
+
+  for (const e of archivedEvents) {
+    byId.set(e.eventId, e);
+    if (e.contentFingerprint) byFingerprint.set(e.contentFingerprint, e);
+    if (e.urlFingerprint) byUrl.set(e.urlFingerprint, e);
+    // Also index all source URLs
+    for (const s of (e.sources || [])) {
+      const ufp = createUrlFingerprint(s.url);
+      if (ufp) byUrl.set(ufp, e);
+    }
+  }
+
+  let mergedCount = 0;
+  let addedCount = 0;
+
+  for (const fresh of freshEvents) {
+    // 1. Check URL fingerprint match (exact same article)
+    let match = fresh.urlFingerprint ? byUrl.get(fresh.urlFingerprint) : null;
+
+    // Also check each source URL
+    if (!match) {
+      for (const s of (fresh.sources || [])) {
+        const ufp = createUrlFingerprint(s.url);
+        if (ufp && byUrl.has(ufp)) { match = byUrl.get(ufp); break; }
+      }
+    }
+
+    // 2. Check content fingerprint match (same headline words)
+    if (!match && fresh.contentFingerprint) {
+      match = byFingerprint.get(fresh.contentFingerprint);
+    }
+
+    // 3. Similarity check against recent archived events (expensive, limited)
+    if (!match) {
+      for (const archived of archivedEvents) {
+        const sim = eventSimilarity(fresh, archived);
+        if (sim >= 0.45) {
+          match = archived;
+          break;
+        }
+      }
+    }
+
+    if (match) {
+      mergeEventInto(match, fresh);
+      mergedCount++;
+    } else {
+      // Genuinely new event — add it
+      byId.set(fresh.eventId, fresh);
+      if (fresh.contentFingerprint) byFingerprint.set(fresh.contentFingerprint, fresh);
+      if (fresh.urlFingerprint) byUrl.set(fresh.urlFingerprint, fresh);
+      for (const s of (fresh.sources || [])) {
+        const ufp = createUrlFingerprint(s.url);
+        if (ufp) byUrl.set(ufp, fresh);
+      }
+      addedCount++;
+    }
+  }
+
+  console.info(`[ingestion] Smart merge: ${mergedCount} merged into existing, ${addedCount} new events`);
+  return Array.from(byId.values());
+}
+
 // ---- Main Ingestion Pipeline ----------------------------------------------
 
 /**
@@ -335,8 +469,14 @@ export async function ingestAll() {
     rawEvents = generateDemoData();
   }
 
+  // 3.5. Pre-deduplicate raw events by source URL (removes exact dupes from feeds)
+  const urlDeduped = deduplicateByUrl(rawEvents);
+  if (urlDeduped.length < rawEvents.length) {
+    console.info(`[ingestion] URL pre-dedup: ${rawEvents.length} -> ${urlDeduped.length}`);
+  }
+
   // 4. Cluster related events
-  const clustered = clusterEvents(rawEvents);
+  const clustered = clusterEvents(urlDeduped);
 
   // 5. Deduplicate: one representative per cluster
   const deduplicated = deduplicateClusters(clustered);
@@ -346,12 +486,21 @@ export async function ingestAll() {
     console.warn('[ingestion] Archive write failed:', err.message)
   );
 
-  // 7. Merge fresh events with archived events (fresh wins on conflict)
-  const eventMap = new Map(archivedEvents.map(e => [e.eventId, e]));
-  for (const event of deduplicated) {
-    eventMap.set(event.eventId, event);
+  // 7. Smart merge: match fresh events against archived by fingerprint,
+  //    URL, and similarity — prevents cross-cycle duplicates
+  let merged;
+  if (archivedEvents.length > 0) {
+    merged = smartMerge(archivedEvents, deduplicated);
+  } else {
+    merged = deduplicated;
   }
-  const merged = Array.from(eventMap.values());
+
+  // 8. Sort: severity desc, source count desc, date desc
+  merged.sort((a, b) => {
+    if (b.severity !== a.severity) return b.severity - a.severity;
+    if (b.sourceCount !== a.sourceCount) return b.sourceCount - a.sourceCount;
+    return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+  });
 
   console.info(`[ingestion] ${archivedEvents.length} archived + ${deduplicated.length} fresh -> ${merged.length} total events`);
 
@@ -392,8 +541,11 @@ export async function ingestByPollInterval(maxPollMinutes) {
 
   if (rawEvents.length === 0) return [];
 
+  // 2.5. Pre-deduplicate by source URL
+  const urlDeduped = deduplicateByUrl(rawEvents);
+
   // 3. Cluster and deduplicate the tier batch
-  const clustered = clusterEvents(rawEvents);
+  const clustered = clusterEvents(urlDeduped);
   const deduplicated = deduplicateClusters(clustered);
 
   // 4. Archive (async, don't block UI)

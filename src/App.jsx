@@ -56,16 +56,64 @@ function App() {
     }
   }, []);
 
-  // Merge strategy for tiered updates: update existing events by eventId,
-  // append new ones. No full re-dedup needed since ingestByPollInterval
-  // already deduplicates its batch internally.
+  // Merge strategy for tiered updates: match new events against existing
+  // by fingerprint/URL/similarity to prevent duplicates, then merge sources.
   const mergeEvents = useCallback((newEvents) => {
     setEvents(prev => {
-      const eventMap = new Map(prev.map(e => [e.eventId, e]));
-      for (const event of newEvents) {
-        eventMap.set(event.eventId, event);
+      const byId = new Map(prev.map(e => [e.eventId, e]));
+      const byFingerprint = new Map();
+      const byUrl = new Map();
+
+      for (const e of prev) {
+        if (e.contentFingerprint) byFingerprint.set(e.contentFingerprint, e);
+        if (e.urlFingerprint) byUrl.set(e.urlFingerprint, e);
+        for (const s of (e.sources || [])) {
+          if (s.url) byUrl.set(s.url, e);
+        }
       }
-      return Array.from(eventMap.values());
+
+      for (const fresh of newEvents) {
+        // Check URL match
+        let match = fresh.urlFingerprint ? byUrl.get(fresh.urlFingerprint) : null;
+        if (!match) {
+          for (const s of (fresh.sources || [])) {
+            if (s.url && byUrl.has(s.url)) { match = byUrl.get(s.url); break; }
+          }
+        }
+        // Check fingerprint match
+        if (!match && fresh.contentFingerprint) {
+          match = byFingerprint.get(fresh.contentFingerprint);
+        }
+
+        if (match) {
+          // Merge sources into existing
+          const seenUrls = new Set((match.sources || []).map(s => s.url));
+          for (const s of (fresh.sources || [])) {
+            if (s.url && !seenUrls.has(s.url)) {
+              match.sources.push(s);
+              seenUrls.add(s.url);
+            }
+          }
+          match.sourceCount = match.sources.length;
+          if (fresh.headline && fresh.headline !== match.headline) {
+            if (!match.alternateHeadlines) match.alternateHeadlines = [];
+            if (!match.alternateHeadlines.some(a => a.headline === fresh.headline)) {
+              match.alternateHeadlines.push({
+                headline: fresh.headline,
+                source: fresh.sources?.[0]?.name || 'Unknown',
+                url: fresh.sources?.[0]?.url || null,
+              });
+            }
+          }
+          if (match.sourceCount >= 3) match.confidence = 'confirmed';
+        } else {
+          byId.set(fresh.eventId, fresh);
+          if (fresh.contentFingerprint) byFingerprint.set(fresh.contentFingerprint, fresh);
+          if (fresh.urlFingerprint) byUrl.set(fresh.urlFingerprint, fresh);
+        }
+      }
+
+      return Array.from(byId.values());
     });
     setLastUpdated(new Date());
   }, []);

@@ -15,6 +15,17 @@ db.version(1).stores({
   eventLog: '++id, eventId, action, timestamp',
 });
 
+// v2: Add content/URL fingerprint indexes + clear old duplicate data
+db.version(2).stores({
+  events: 'eventId, clusterId, contentFingerprint, urlFingerprint, headline, category, primaryCountry, primaryRegion, severity, confidence, status, firstSeenAt, lastUpdatedAt, publishedAt, ingestedAt',
+  eventLog: '++id, eventId, action, timestamp',
+}).upgrade(tx => {
+  // One-time migration: clear all old events that lack fingerprints
+  // (these are the duplicates from the old system)
+  console.info('[archiveDb] v2 migration: clearing old events without fingerprints');
+  return tx.table('events').clear();
+});
+
 // ---- Event Storage --------------------------------------------------------
 
 /**
@@ -26,19 +37,31 @@ export async function storeEvents(events) {
 
   await db.transaction('rw', db.events, db.eventLog, async () => {
     for (const event of events) {
-      const existing = await db.events.get(event.eventId);
+      // Check for existing event by eventId, content fingerprint, or URL fingerprint
+      let existing = await db.events.get(event.eventId);
+
+      if (!existing && event.contentFingerprint) {
+        existing = await db.events.where('contentFingerprint').equals(event.contentFingerprint).first();
+      }
+
+      if (!existing && event.urlFingerprint) {
+        existing = await db.events.where('urlFingerprint').equals(event.urlFingerprint).first();
+      }
 
       if (existing) {
-        // Update existing event
+        // Update existing event — merge sources, keep best metadata
         await db.events.put({
           ...existing,
           ...event,
+          eventId: existing.eventId, // Keep the original eventId
           lastUpdatedAt: now,
+          firstSeenAt: existing.firstSeenAt, // Keep original first-seen
           sourceCount: Math.max(existing.sourceCount || 0, event.sourceCount || 0),
           sources: mergeSources(existing.sources, event.sources),
+          alternateHeadlines: mergeAlternateHeadlines(existing, event),
         });
         await db.eventLog.add({
-          eventId: event.eventId,
+          eventId: existing.eventId,
           action: 'updated',
           timestamp: now,
           details: `Source count: ${event.sourceCount}`,
@@ -55,6 +78,25 @@ export async function storeEvents(events) {
       }
     }
   });
+}
+
+function mergeAlternateHeadlines(existing, incoming) {
+  const alts = [...(existing.alternateHeadlines || [])];
+  if (incoming.headline && incoming.headline !== existing.headline) {
+    if (!alts.some(a => a.headline === incoming.headline)) {
+      alts.push({
+        headline: incoming.headline,
+        source: incoming.sources?.[0]?.name || 'Unknown',
+        url: incoming.sources?.[0]?.url || null,
+      });
+    }
+  }
+  for (const alt of (incoming.alternateHeadlines || [])) {
+    if (!alts.some(a => a.headline === alt.headline)) {
+      alts.push(alt);
+    }
+  }
+  return alts;
 }
 
 function mergeSources(existing = [], incoming = []) {
